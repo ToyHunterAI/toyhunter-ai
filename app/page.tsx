@@ -100,19 +100,123 @@ function FeatureCard({
 
 function TargetIcon({ color }: { color: string }) {
   return (
-    <div style={{ ...iconBoxStyle, borderColor: color, boxShadow: `0 0 18px ${color}66` }}>
-      <div style={{ ...targetOuterStyle, borderColor: color }} />
-      <div style={{ ...targetInnerStyle, borderColor: color }} />
-      <div style={{ ...targetDotStyle, backgroundColor: color }} />
+    <div
+      style={{
+        ...iconBoxStyle,
+        borderColor: color,
+        boxShadow: `0 0 18px ${color}66`,
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          inset: "10px",
+          border: `2px solid ${color}`,
+          borderRadius: "50%",
+        }}
+      />
+
+      <div
+        style={{
+          position: "absolute",
+          inset: "22px",
+          border: `2px solid ${color}`,
+          borderRadius: "50%",
+        }}
+      />
+
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "8px",
+          bottom: "8px",
+          width: "1px",
+          backgroundColor: color,
+          opacity: 0.5,
+        }}
+      />
+
+      <div
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "8px",
+          right: "8px",
+          height: "1px",
+          backgroundColor: color,
+          opacity: 0.5,
+        }}
+      />
+
+      <div
+        style={{
+          position: "absolute",
+          width: "8px",
+          height: "8px",
+          borderRadius: "50%",
+          backgroundColor: color,
+          left: "50%",
+          top: "50%",
+          transform: "translate(-50%, -50%)",
+          boxShadow: `0 0 12px ${color}`,
+        }}
+      />
     </div>
   );
 }
 
 function ChartIcon({ color }: { color: string }) {
   return (
-    <div style={{ ...iconBoxStyle, borderColor: color, boxShadow: `0 0 18px ${color}66` }}>
-      <div style={{ ...chartAxisStyle, borderColor: color }} />
-      <div style={{ ...chartLineStyle, borderColor: color }} />
+    <div
+      style={{
+        ...iconBoxStyle,
+        borderColor: color,
+        boxShadow: `0 0 18px ${color}66`,
+      }}
+    >
+      <svg
+        width="64"
+        height="64"
+        viewBox="0 0 64 64"
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+        }}
+      >
+        <line
+          x1="16"
+          y1="48"
+          x2="16"
+          y2="18"
+          stroke={color}
+          strokeWidth="2"
+        />
+
+        <line
+          x1="16"
+          y1="48"
+          x2="50"
+          y2="48"
+          stroke={color}
+          strokeWidth="2"
+        />
+
+        <polyline
+          points="20,42 28,34 35,38 46,24"
+          fill="none"
+          stroke={color}
+          strokeWidth="3"
+        />
+
+        <polyline
+          points="42,24 46,24 46,28"
+          fill="none"
+          stroke={color}
+          strokeWidth="3"
+        />
+      </svg>
     </div>
   );
 }
@@ -127,10 +231,36 @@ function CoinIcon({ color }: { color: string }) {
 
 function TrophyIcon({ color }: { color: string }) {
   return (
-    <div style={{ ...iconBoxStyle, borderColor: color, boxShadow: `0 0 18px ${color}66` }}>
-      <div style={{ ...trophyCupStyle, borderColor: color }} />
-      <div style={{ ...trophyStemStyle, backgroundColor: color }} />
-      <div style={{ ...trophyBaseStyle, backgroundColor: color }} />
+    <div
+      style={{
+        ...iconBoxStyle,
+        borderColor: color,
+        boxShadow: `0 0 18px ${color}66`,
+      }}
+    >
+      <svg
+        width="64"
+        height="64"
+        viewBox="0 0 64 64"
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+        }}
+      >
+        <polygon
+          points="32,14 44,24 39,42 25,42 20,24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2.5"
+        />
+
+        <polygon
+          points="32,20 38,26 35,36 29,36 26,26"
+          fill={color}
+          opacity="0.3"
+        />
+      </svg>
     </div>
   );
 }
@@ -245,7 +375,7 @@ const sweepStyle = {
   background:
     "linear-gradient(45deg, rgba(34,211,238,0.55), rgba(34,211,238,0.08), transparent 70%)",
   transformOrigin: "left top",
-  transform: "rotate(-35deg)",
+  animation: "radarSweep 8s linear infinite",
   clipPath: "polygon(0 0, 100% 0, 0 100%)",
 };
 

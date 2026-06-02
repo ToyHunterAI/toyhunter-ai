@@ -22,12 +22,48 @@ body {
 }
 
 body {
-  background-color: #0b1020;
+  background-color: #020617;
 
   background-image:
-    radial-gradient(
-      circle at top right,
-      rgba(245, 158, 11, 0.35),
-      transparent 40%
-    );
+    linear-gradient(rgba(34, 211, 238, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px),
+    radial-gradient(circle at 70% 30%, rgba(34, 211, 238, 0.22), transparent 32%),
+    radial-gradient(circle at 55% 95%, rgba(236, 72, 153, 0.20), transparent 38%),
+    radial-gradient(circle at 92% 20%, rgba(245, 158, 11, 0.12), transparent 30%);
+
+  background-size:
+    56px 56px,
+    56px 56px,
+    auto,
+    auto,
+    auto;
+
+  background-attachment: fixed;
+  color: white;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+
+  background-image:
+    linear-gradient(rgba(255,255,255,0.035) 50%, transparent 50%),
+    radial-gradient(circle, rgba(34,211,238,0.25) 1px, transparent 1px);
+
+  background-size:
+    100% 4px,
+    90px 90px;
+
+  opacity: 0.35;
+}
+@keyframes radarSweep {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }

@@ -34,17 +34,14 @@ export default function Navbar() {
               gap: "14px",
             }}
           >
-            <div
-              style={{
-                position: "relative",
-                width: "42px",
-                height: "42px",
-              }}
-            >
-              <div style={outerRingStyle} />
-              <div style={middleRingStyle} />
-              <div style={coreDotStyle} />
-            </div>
+            <div style={logoRadarStyle}>
+  <div style={logoOuterRingStyle} />
+  <div style={logoMiddleRingStyle} />
+  <div style={logoInnerRingStyle} />
+  <div style={logoHorizontalLineStyle} />
+  <div style={logoVerticalLineStyle} />
+  <span style={logoTextStyle}>TH</span>
+</div>
 
             <span
               style={{
@@ -90,25 +87,61 @@ function getLinkStyle(active: boolean) {
   };
 }
 
-const outerRingStyle = {
+const logoRadarStyle = {
+  position: "relative" as const,
+  width: "46px",
+  height: "46px",
+  borderRadius: "50%",
+  boxShadow: "0 0 22px rgba(34,211,238,0.45)",
+};
+
+const logoOuterRingStyle = {
   position: "absolute" as const,
   inset: "0",
-  border: "2px solid rgba(245,158,11,0.9)",
+  border: "2px solid rgba(34,211,238,0.95)",
   borderRadius: "50%",
-  boxShadow: "0 0 18px rgba(245,158,11,0.25)",
 };
 
-const middleRingStyle = {
+const logoMiddleRingStyle = {
   position: "absolute" as const,
   inset: "7px",
-  border: "2px solid rgba(245,158,11,0.55)",
+  border: "1px solid rgba(34,211,238,0.65)",
   borderRadius: "50%",
 };
 
-const coreDotStyle = {
+const logoInnerRingStyle = {
   position: "absolute" as const,
-  inset: "15px",
-  background: "#f59e0b",
+  inset: "14px",
+  border: "1px solid rgba(34,211,238,0.45)",
   borderRadius: "50%",
-  boxShadow: "0 0 24px rgba(245,158,11,0.9)",
+};
+
+const logoHorizontalLineStyle = {
+  position: "absolute" as const,
+  left: "4px",
+  right: "4px",
+  top: "50%",
+  height: "1px",
+  backgroundColor: "rgba(34,211,238,0.45)",
+};
+
+const logoVerticalLineStyle = {
+  position: "absolute" as const,
+  top: "4px",
+  bottom: "4px",
+  left: "50%",
+  width: "1px",
+  backgroundColor: "rgba(34,211,238,0.45)",
+};
+
+const logoTextStyle = {
+  position: "absolute" as const,
+  left: "50%",
+  top: "50%",
+  transform: "translate(-50%, -50%)",
+  color: "#ffffff",
+  fontSize: "10px",
+  fontWeight: "900",
+  letterSpacing: "0.5px",
+  textShadow: "0 0 8px rgba(34,211,238,0.9)",
 };
