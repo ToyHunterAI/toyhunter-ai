@@ -14,9 +14,9 @@ export default function HomePage() {
           </h1>
 
           <p style={subtitleStyle}>
-            ToyHunter AI helpt je straks vintage speelgoed scannen, herkennen en
-            beoordelen voordat iemand anders de verborgen waarde ziet.
-          </p>
+  ToyHunter AI helps collectors identify, evaluate and uncover hidden value in
+  vintage toys before anyone else spots the opportunity.
+</p>
 
           <div style={{ display: "flex", gap: "16px", marginTop: "34px" }}>
             <Link href="/analyse" style={primaryButton}>
@@ -24,8 +24,8 @@ export default function HomePage() {
             </Link>
 
             <Link href="/hunt" style={secondaryButton}>
-              View Dashboard
-            </Link>
+  Start Hunting
+</Link>
           </div>
         </div>
 

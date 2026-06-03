@@ -83,9 +83,8 @@ export default function AnalysePage() {
           waarde: "Unknown",
           rarity: "☆☆☆☆☆",
           confidence: "0%",
-          buyScore: "0 / 10",
-          advies: "NO",
-          toelichting: data.error,
+          buyScore: "0",
+          notes: data.error,
         });
       }
     } catch {
@@ -100,9 +99,8 @@ export default function AnalysePage() {
         waarde: "Unknown",
         rarity: "☆☆☆☆☆",
         confidence: "0%",
-        buyScore: "0 / 10",
-        advies: "NO",
-        toelichting: "Failed to connect to ToyHunter AI.",
+        buyScore: "0",
+        notes: "Failed to connect to ToyHunter AI.",
       });
     }
 
@@ -113,12 +111,10 @@ export default function AnalysePage() {
     }, 3000);
   }
 
-  const verdictColor =
-    aiResult?.advies === "BUY"
-      ? "#22c55e"
-      : aiResult?.advies === "NO"
-      ? "#ef4444"
-      : "#f59e0b";
+  const potentialProfit = calculatePotentialProfit(
+    aiResult?.askingPrice,
+    aiResult?.waarde
+  );
 
   return (
     <main style={pageStyle}>
@@ -126,10 +122,10 @@ export default function AnalysePage() {
         <p style={eyebrowStyle}>Analyse Assistant</p>
 
         <h1 style={titleStyle}>
-  <span style={{ color: "#a855f7" }}>Scan.</span>{" "}
-  <span style={{ color: "#22d3ee" }}>Detect.</span>{" "}
-  <span style={{ color: "#22c55e" }}>Value.</span>
-</h1>
+          <span style={{ color: "#a855f7" }}>Scan.</span>{" "}
+          <span style={{ color: "#22d3ee" }}>Detect.</span>{" "}
+          <span style={{ color: "#22c55e" }}>Value.</span>
+        </h1>
 
         <p style={subtitleStyle}>
           Upload toys and discover hidden value before others do.
@@ -255,62 +251,42 @@ export default function AnalysePage() {
             <>
               <div style={signalStyle}>SIGNAL DETECTED</div>
 
+              <ReportRow label="Platform" value={aiResult?.platform || "Unknown"} />
+              <ReportRow label="Asking Price" value={aiResult?.askingPrice || "Not visible"} />
+              <ReportRow label="Object" value={aiResult?.object || "Preparing analysis..."} />
+              <ReportRow label="Series" value={aiResult?.serie || "Not identified"} />
+              <ReportRow label="Manufacturer" value={aiResult?.manufacturer || "Unknown"} />
+              <ReportRow label="Year" value={aiResult?.jaar || "Unknown"} />
+<ReportRow label="Period" value={aiResult?.periode || "Unknown"} />
+              <ReportRow label="Estimated Value" value={aiResult?.waarde || "Unknown"} />
+
               <ReportRow
-                label="Platform"
-                value={aiResult?.platform || "Unknown"}
-              />
-              <ReportRow
-                label="Asking Price"
-                value={aiResult?.askingPrice || "Not visible"}
-              />
-              <ReportRow
-                label="Object"
-                value={aiResult?.object || "Preparing analysis..."}
-              />
-              <ReportRow
-                label="Series"
-                value={aiResult?.serie || "Not identified"}
-              />
-              <ReportRow
-                label="Manufacturer"
-                value={aiResult?.manufacturer || "Unknown"}
-              />
-              <ReportRow
-                label="Year"
-                value={aiResult?.jaar || aiResult?.periode || "Unknown"}
-              />
-              <ReportRow label="Value" value={aiResult?.waarde || "Unknown"} />
-              <ReportRow
-                label="Rarity"
-                value={aiResult?.rarity || "☆☆☆☆☆"}
-              />
-              <ReportRow
-                label="Confidence"
-                value={aiResult?.confidence || "0%"}
-              />
-              <ReportRow
-                label="Buy Score"
-                value={aiResult?.buyScore || "0 / 10"}
+                label="Potential Profit"
+                value={potentialProfit}
+                color={getProfitColor(potentialProfit)}
               />
 
-              <div
-                style={{
-                  ...verdictStyle,
-                  border: `1px solid ${verdictColor}`,
-                  backgroundColor:
-                    aiResult?.advies === "BUY"
-                      ? "rgba(34,197,94,0.1)"
-                      : aiResult?.advies === "NO"
-                      ? "rgba(239,68,68,0.1)"
-                      : "rgba(245,158,11,0.1)",
-                }}
-              >
-                <p style={{ margin: 0, color: "#94a3b8" }}>Verdict</p>
-                <h2 style={{ margin: "8px 0", color: verdictColor }}>
-                  {aiResult?.advies || "MAYBE"}
-                </h2>
-                <p style={{ margin: 0, color: "#cbd5e1" }}>
-                  {aiResult?.toelichting || "Awaiting analysis..."}
+              <ReportRow label="Rarity" value={aiResult?.rarity || "☆☆☆☆☆"} />
+              <ReportRow label="Confidence" value={formatConfidence(aiResult?.confidence)} />
+
+              <ReportRow
+  label="Buy Score"
+  value={formatBuyScore(calculateBuyScore(potentialProfit))}
+  color={getBuyScoreColor(calculateBuyScore(potentialProfit))}
+/>
+
+              <div style={notesStyle}>
+                <p style={{ margin: 0, color: "#94a3b8" }}>Analysis Notes</p>
+                <p
+                  style={{
+                    margin: "10px 0 0",
+                    color: "#cbd5e1",
+                    lineHeight: "1.5",
+                  }}
+                >
+                  {aiResult?.notes ||
+                    aiResult?.toelichting ||
+                    "Awaiting analysis..."}
                 </p>
               </div>
             </>
@@ -318,6 +294,117 @@ export default function AnalysePage() {
         </div>
       </section>
     </main>
+  );
+}
+
+function calculatePotentialProfit(
+  askingPrice: string | undefined,
+  valueRange: string | undefined
+) {
+  const asking = extractFirstNumber(askingPrice || "");
+  const values = extractNumbers(valueRange || "");
+
+  if (!asking || values.length === 0) {
+    return "Unknown";
+  }
+
+  const minValue = values[0];
+  const maxValue = values.length > 1 ? values[1] : values[0];
+
+  const minProfit = Math.round(minValue - asking);
+  const maxProfit = Math.round(maxValue - asking);
+
+  return `€${minProfit} - €${maxProfit}`;
+}
+
+function getProfitColor(profitText: string) {
+  const numbers = profitText.match(/-?\d+(\.\d+)?/g);
+
+  if (!numbers || numbers.length === 0) return "white";
+
+  const minProfit = Number(numbers[0]);
+  const maxProfit = numbers.length > 1 ? Number(numbers[1]) : minProfit;
+
+  if (minProfit > 0 && maxProfit > 0) return "#22c55e";
+  if (minProfit < 0 && maxProfit < 0) return "#ef4444";
+
+  return "#f59e0b";
+}
+
+function calculateBuyScore(profitText: string) {
+  const numbers = profitText.match(/-?\d+(\.\d+)?/g);
+
+  if (!numbers || numbers.length === 0) return "N/A";
+
+  const minProfit = Number(numbers[0]);
+  const maxProfit = numbers.length > 1 ? Number(numbers[1]) : minProfit;
+
+  if (maxProfit < 0) return "2";
+  if (minProfit < 0 && maxProfit <= 10) return "4";
+  if (minProfit < 0 && maxProfit > 10) return "6";
+  if (minProfit >= 0 && maxProfit < 10) return "5";
+  if (maxProfit >= 10 && maxProfit < 25) return "6";
+  if (maxProfit >= 25 && maxProfit < 50) return "8";
+  if (maxProfit >= 50 && maxProfit < 100) return "9";
+  if (maxProfit >= 100) return "10";
+
+  return "5";
+}
+
+function getBuyScoreColor(score: string | undefined) {
+  if (!score || score === "N/A") {
+    return "#94a3b8";
+  }
+
+  const number = extractFirstNumber(score) || 0;
+
+  if (number >= 8) return "#22c55e";
+  if (number >= 5) return "#f59e0b";
+  return "#ef4444";
+}
+
+function formatBuyScore(score: string | undefined) {
+  if (!score || score === "N/A") {
+    return "N/A";
+  }
+
+  const number = extractFirstNumber(score) || 0;
+  return `${number} / 10`;
+}
+
+function formatConfidence(confidence: any) {
+  const number = extractFirstNumber(confidence || "0") || 0;
+
+  if (number <= 1 && number > 0) {
+    return `${Math.round(number * 100)}%`;
+  }
+
+  if (number > 100) {
+    return "100%";
+  }
+
+  return `${Math.round(number)}%`;
+}
+
+function extractFirstNumber(value: any) {
+  if (value === null || value === undefined) return null;
+
+  const text = String(value);
+
+  const match = text.replace(",", ".").match(/\d+(\.\d+)?/);
+  return match ? Number(match[0]) : null;
+}
+
+function extractNumbers(value: any) {
+  if (value === null || value === undefined) return [];
+
+  const text = String(value);
+
+  return (
+    text
+      .replace(/,/g, ".")
+      .match(/\d+(\.\d+)?/g)
+      ?.map(Number) || []
   );
 }
 
@@ -332,11 +419,26 @@ function ScanStep({ active, label }: { active: boolean; label: string }) {
   );
 }
 
-function ReportRow({ label, value }: { label: string; value: string }) {
+function ReportRow({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: string;
+  color?: string;
+}) {
   return (
     <div style={reportRowStyle}>
       <span style={reportLabelStyle}>{label}</span>
-      <strong style={reportValueStyle}>{value}</strong>
+      <strong
+        style={{
+          ...reportValueStyle,
+          color: color || "white",
+        }}
+      >
+        {value}
+      </strong>
     </div>
   );
 }
@@ -650,8 +752,10 @@ const reportValueStyle = {
   wordBreak: "break-word" as const,
 };
 
-const verdictStyle = {
+const notesStyle = {
   marginTop: "18px",
   padding: "18px",
   borderRadius: "16px",
+  border: "1px solid rgba(34,197,94,0.45)",
+  backgroundColor: "rgba(34,197,94,0.08)",
 };
