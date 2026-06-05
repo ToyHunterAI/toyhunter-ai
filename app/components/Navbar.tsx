@@ -70,8 +70,12 @@ export default function Navbar() {
           </Link>
 
           <Link href="/sell" style={getLinkStyle(pathname === "/sell")}>
-            Sell
-          </Link>
+  Sell
+</Link>
+
+<Link href="/events" style={getLinkStyle(pathname === "/events")}>
+  Events
+</Link>
         </div>
       </nav>
     </header>
