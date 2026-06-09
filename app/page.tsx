@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type React from "react";
 
 export default function HomePage() {
   return (
@@ -14,9 +15,9 @@ export default function HomePage() {
           </h1>
 
           <p style={subtitleStyle}>
-  ToyHunter AI helps collectors identify, evaluate and uncover hidden value in
-  vintage toys before anyone else spots the opportunity.
-</p>
+            Identify toys, estimate value, discover hidden gems and let ToyHunter
+            scan marketplaces daily for new opportunities.
+          </p>
 
           <div style={{ display: "flex", gap: "16px", marginTop: "34px" }}>
             <Link href="/analyse" style={primaryButton}>
@@ -24,8 +25,8 @@ export default function HomePage() {
             </Link>
 
             <Link href="/hunt" style={secondaryButton}>
-  Start Hunting
-</Link>
+              Daily Hunt
+            </Link>
           </div>
         </div>
 
@@ -50,21 +51,75 @@ export default function HomePage() {
       </section>
 
       <section style={featuresSectionStyle}>
-        <FeatureCard color="#fb7185" title="AI Detection" text="Advanced AI identifies valuable toys in seconds.">
+        <FeatureCard
+          color="#fb7185"
+          title="AI Detection"
+          text="Advanced AI identifies valuable toys in seconds."
+        >
           <TargetIcon color="#fb7185" />
         </FeatureCard>
 
-        <FeatureCard color="#22d3ee" title="Market Analysis" text="Real-time market data and sales trends.">
+        <FeatureCard
+          color="#22d3ee"
+          title="Market Analysis"
+          text="Real-time market data and sales trends."
+        >
           <ChartIcon color="#22d3ee" />
         </FeatureCard>
 
-        <FeatureCard color="#f59e0b" title="Value Estimation" text="Get accurate price ranges and profit potential.">
+        <FeatureCard
+          color="#f59e0b"
+          title="Value Estimation"
+          text="Get accurate price ranges and profit potential."
+        >
           <CoinIcon color="#f59e0b" />
         </FeatureCard>
 
-        <FeatureCard color="#fb7185" title="Stay Ahead" text="Find gems others miss before they do.">
+        <FeatureCard
+          color="#fb7185"
+          title="Stay Ahead"
+          text="Find gems others miss before they do."
+        >
           <TrophyIcon color="#fb7185" />
         </FeatureCard>
+      </section>
+
+      <section style={howItWorksSectionStyle}>
+        <h2 style={howItWorksTitleStyle}>How ToyHunter Works</h2>
+
+        <div style={howItWorksGridStyle}>
+          <div style={stepCardStyle}>
+            <div style={stepNumberStyle}>1</div>
+            <h3 style={stepTitleStyle}>Set Your Hunt Profile</h3>
+            <p style={stepTextStyle}>
+              Choose your toy lines, platforms, budget and profit targets.
+            </p>
+          </div>
+
+          <div style={stepCardStyle}>
+            <div style={stepNumberStyle}>2</div>
+            <h3 style={stepTitleStyle}>ToyHunter Scans Daily</h3>
+            <p style={stepTextStyle}>
+              Our hunt engine searches marketplaces for new opportunities.
+            </p>
+          </div>
+
+          <div style={stepCardStyle}>
+            <div style={stepNumberStyle}>3</div>
+            <h3 style={stepTitleStyle}>Hidden Gems Detected</h3>
+            <p style={stepTextStyle}>
+              Listings are scored using rarity, market value and profit potential.
+            </p>
+          </div>
+
+          <div style={stepCardStyle}>
+            <div style={stepNumberStyle}>4</div>
+            <h3 style={stepTitleStyle}>Buy Before Others</h3>
+            <p style={stepTextStyle}>
+              Review your Daily Hunt dashboard and grab the best finds first.
+            </p>
+          </div>
+        </div>
       </section>
     </main>
   );
@@ -185,31 +240,14 @@ function ChartIcon({ color }: { color: string }) {
           top: 0,
         }}
       >
-        <line
-          x1="16"
-          y1="48"
-          x2="16"
-          y2="18"
-          stroke={color}
-          strokeWidth="2"
-        />
-
-        <line
-          x1="16"
-          y1="48"
-          x2="50"
-          y2="48"
-          stroke={color}
-          strokeWidth="2"
-        />
-
+        <line x1="16" y1="48" x2="16" y2="18" stroke={color} strokeWidth="2" />
+        <line x1="16" y1="48" x2="50" y2="48" stroke={color} strokeWidth="2" />
         <polyline
           points="20,42 28,34 35,38 46,24"
           fill="none"
           stroke={color}
           strokeWidth="3"
         />
-
         <polyline
           points="42,24 46,24 46,28"
           fill="none"
@@ -223,7 +261,13 @@ function ChartIcon({ color }: { color: string }) {
 
 function CoinIcon({ color }: { color: string }) {
   return (
-    <div style={{ ...iconBoxStyle, borderColor: color, boxShadow: `0 0 18px ${color}66` }}>
+    <div
+      style={{
+        ...iconBoxStyle,
+        borderColor: color,
+        boxShadow: `0 0 18px ${color}66`,
+      }}
+    >
       <div style={{ ...coinCircleStyle, borderColor: color, color }}>€</div>
     </div>
   );
@@ -361,10 +405,35 @@ const lineBase = {
   transformOrigin: "center",
 };
 
-const horizontalLineStyle = { ...lineBase, width: "100%", height: "1px", left: "0" };
-const verticalLineStyle = { ...lineBase, width: "1px", height: "100%", top: "0" };
-const diagonalLineOneStyle = { ...lineBase, width: "100%", height: "1px", left: "0", transform: "rotate(45deg)" };
-const diagonalLineTwoStyle = { ...lineBase, width: "100%", height: "1px", left: "0", transform: "rotate(-45deg)" };
+const horizontalLineStyle = {
+  ...lineBase,
+  width: "100%",
+  height: "1px",
+  left: "0",
+};
+
+const verticalLineStyle = {
+  ...lineBase,
+  width: "1px",
+  height: "100%",
+  top: "0",
+};
+
+const diagonalLineOneStyle = {
+  ...lineBase,
+  width: "100%",
+  height: "1px",
+  left: "0",
+  transform: "rotate(45deg)",
+};
+
+const diagonalLineTwoStyle = {
+  ...lineBase,
+  width: "100%",
+  height: "1px",
+  left: "0",
+  transform: "rotate(-45deg)",
+};
 
 const sweepStyle = {
   position: "absolute" as const,
@@ -469,6 +538,56 @@ const featureTextStyle = {
   margin: 0,
 };
 
+const howItWorksSectionStyle = {
+  maxWidth: "1400px",
+  margin: "80px auto",
+};
+
+const howItWorksTitleStyle = {
+  color: "white",
+  fontSize: "42px",
+  fontWeight: "900",
+  textAlign: "center" as const,
+  marginBottom: "34px",
+};
+
+const howItWorksGridStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(4, 1fr)",
+  gap: "22px",
+};
+
+const stepCardStyle = {
+  backgroundColor: "rgba(6,10,30,0.55)",
+  border: "1px solid rgba(34,211,238,0.2)",
+  borderRadius: "18px",
+  padding: "26px",
+  minHeight: "170px",
+  boxShadow: "0 0 30px rgba(34,211,238,0.08)",
+  backdropFilter: "blur(8px)",
+};
+
+const stepNumberStyle = {
+  color: "#22d3ee",
+  fontSize: "34px",
+  fontWeight: "900",
+  marginBottom: "12px",
+};
+
+const stepTitleStyle = {
+  color: "white",
+  fontSize: "20px",
+  fontWeight: "900",
+  margin: "0 0 10px",
+};
+
+const stepTextStyle = {
+  color: "#94a3b8",
+  fontSize: "15px",
+  lineHeight: "1.6",
+  margin: 0,
+};
+
 const iconBoxStyle = {
   width: "64px",
   height: "64px",
@@ -476,51 +595,6 @@ const iconBoxStyle = {
   border: "2px solid",
   position: "relative" as const,
   flexShrink: 0,
-};
-
-const targetOuterStyle = {
-  position: "absolute" as const,
-  inset: "12px",
-  border: "2px solid",
-  borderRadius: "50%",
-};
-
-const targetInnerStyle = {
-  position: "absolute" as const,
-  inset: "24px",
-  border: "2px solid",
-  borderRadius: "50%",
-};
-
-const targetDotStyle = {
-  position: "absolute" as const,
-  width: "8px",
-  height: "8px",
-  borderRadius: "50%",
-  left: "50%",
-  top: "50%",
-  transform: "translate(-50%, -50%)",
-};
-
-const chartAxisStyle = {
-  position: "absolute" as const,
-  left: "16px",
-  bottom: "16px",
-  width: "32px",
-  height: "32px",
-  borderLeft: "2px solid",
-  borderBottom: "2px solid",
-};
-
-const chartLineStyle = {
-  position: "absolute" as const,
-  left: "22px",
-  top: "30px",
-  width: "30px",
-  height: "18px",
-  borderTop: "3px solid",
-  borderRight: "3px solid",
-  transform: "skew(-25deg)",
 };
 
 const coinCircleStyle = {
@@ -533,32 +607,4 @@ const coinCircleStyle = {
   justifyContent: "center",
   fontWeight: "900",
   fontSize: "26px",
-};
-
-const trophyCupStyle = {
-  position: "absolute" as const,
-  left: "18px",
-  top: "14px",
-  width: "28px",
-  height: "24px",
-  border: "3px solid",
-  borderTop: "none",
-  borderRadius: "0 0 12px 12px",
-};
-
-const trophyStemStyle = {
-  position: "absolute" as const,
-  left: "30px",
-  top: "38px",
-  width: "4px",
-  height: "10px",
-};
-
-const trophyBaseStyle = {
-  position: "absolute" as const,
-  left: "22px",
-  top: "50px",
-  width: "20px",
-  height: "4px",
-  borderRadius: "999px",
 };

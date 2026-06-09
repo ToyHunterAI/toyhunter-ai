@@ -1,270 +1,16 @@
 import { NextResponse } from "next/server";
 
-type EbayItem = {
-  title?: string;
-  price?: {
-    value?: string;
-    currency?: string;
-  };
-  condition?: string;
-  image?: {
-    imageUrl?: string;
-  };
-  itemWebUrl?: string;
-  seller?: {
-    username?: string;
-  };
-};
+export const dynamic = "force-dynamic";
 
-type MarketValueEstimate = {
-  estimatedMarketValue: number;
-  marketConfidence: number;
-  valueGap: number;
-  marketValueSource: string;
-};
+const EBAY_CLIENT_ID = process.env.EBAY_CLIENT_ID!;
+const EBAY_CLIENT_SECRET = process.env.EBAY_CLIENT_SECRET!;
 
-function estimateMarketValuePlaceholder(
-  item: EbayItem,
-  query: string
-): MarketValueEstimate {
-  const title = item.title?.toLowerCase() || "";
-  const priceValue = Number(item.price?.value || 0);
+async function getEbayToken() {
+  const credentials = Buffer.from(
+    `${EBAY_CLIENT_ID}:${EBAY_CLIENT_SECRET}`
+  ).toString("base64");
 
-  let estimatedMarketValue = 0;
-  let marketConfidence = 0;
-  let marketValueSource = "Not available yet";
-
-  /*
-    FUTURE MARKET VALUE ENGINE
-
-    Later vullen we dit met:
-    - eBay sold/completed data
-    - Terapeak data als mogelijk
-    - WorthPoint of andere historische bronnen
-    - eigen database met eerdere analyses
-
-    Voor nu geven we alleen een veilige placeholder terug,
-    zodat de rest van ToyHunter al klaar is voor marktwaarde.
-  */
-
-  if (priceValue > 0 && title.includes("diaclone")) {
-    estimatedMarketValue = 0;
-    marketConfidence = 0;
-    marketValueSource = "Future sold-data lookup needed";
-  }
-
-  if (priceValue > 0 && title.includes("g1")) {
-    estimatedMarketValue = 0;
-    marketConfidence = 0;
-    marketValueSource = "Future sold-data lookup needed";
-  }
-
-  const valueGap =
-    estimatedMarketValue > 0
-      ? Math.round(((estimatedMarketValue - priceValue) / estimatedMarketValue) * 100)
-      : 0;
-
-  return {
-    estimatedMarketValue,
-    marketConfidence,
-    valueGap,
-    marketValueSource,
-  };
-}
-
-function calculateHiddenGemScore(item: EbayItem, query: string) {
-  let score = 35;
-  const reasons: string[] = [];
-  const risks: string[] = [];
-
-  const title = item.title?.toLowerCase() || "";
-  const priceValue = Number(item.price?.value || 0);
-  const queryMainWord = query.toLowerCase().split(" ")[0];
-
-  const marketValue = estimateMarketValuePlaceholder(item, query);
-
-  const strongVintageWords = [
-    "g1",
-    "1980",
-    "1981",
-    "1982",
-    "1983",
-    "1984",
-    "1985",
-    "1986",
-    "1987",
-    "1988",
-    "1989",
-    "vintage",
-    "kenner",
-    "takara",
-    "hasbro",
-    "mattel",
-    "bandai",
-    "tomy",
-  ];
-
-  const hiddenGemWords = [
-    "lot",
-    "mixed",
-    "bundle",
-    "job lot",
-    "old toys",
-    "toy lot",
-    "action figure lot",
-    "unknown",
-    "unbranded",
-  ];
-
-  const valueWords = [
-    "complete",
-    "boxed",
-    "box",
-    "instructions",
-    "manual",
-    "accessories",
-    "rare",
-    "working",
-  ];
-
-  const partWords = [
-    "gun",
-    "cannon",
-    "missile",
-    "weapon",
-    "weapons",
-    "accessory",
-    "accessories",
-    "part",
-    "parts",
-    "door",
-    "wheel",
-    "sticker",
-    "label",
-  ];
-
-  const modernRiskWords = [
-    "reissue",
-    "re-issue",
-    "remake",
-    "replica",
-    "custom",
-    "ko",
-    "bootleg",
-    "3d printed",
-    "replacement",
-    "upgrade kit",
-    "studio series",
-    "legacy",
-    "earthrise",
-    "kingdom",
-    "siege",
-    "third party",
-  ];
-
-  if (strongVintageWords.some((word) => title.includes(word))) {
-    score += 18;
-    reasons.push("Strong vintage signal");
-  }
-
-  if (hiddenGemWords.some((word) => title.includes(word))) {
-    score += 20;
-    reasons.push("Generic or mixed listing may hide value");
-  }
-
-  if (valueWords.some((word) => title.includes(word))) {
-    score += 10;
-    reasons.push("Mentions completeness, box, accessories or rarity");
-  }
-
-  if (priceValue > 0 && priceValue < 20) {
-    score += 18;
-    reasons.push("Low asking price");
-  } else if (priceValue >= 20 && priceValue < 50) {
-    score += 8;
-    reasons.push("Moderate asking price");
-  } else if (priceValue >= 100) {
-    score -= 15;
-    risks.push("High asking price");
-  }
-
-  if (marketValue.estimatedMarketValue > 0) {
-    if (marketValue.valueGap >= 50) {
-      score += 25;
-      reasons.push("Large discount compared to estimated market value");
-    } else if (marketValue.valueGap >= 25) {
-      score += 15;
-      reasons.push("Priced below estimated market value");
-    } else if (marketValue.valueGap <= -10) {
-      score -= 15;
-      risks.push("Price appears above estimated market value");
-    }
-  } else {
-    risks.push("Market value not checked yet");
-  }
-
-  if (partWords.some((word) => title.includes(word))) {
-    score -= 18;
-    risks.push("May be only a loose part or accessory");
-  }
-
-  if (modernRiskWords.some((word) => title.includes(word))) {
-    score -= 35;
-    risks.push("Possible modern, reissue, custom, replica or replacement item");
-  }
-
-  if (!item.image?.imageUrl) {
-    score -= 10;
-    risks.push("No image available");
-  }
-
-  if (!item.condition || item.condition === "Unknown") {
-    score -= 5;
-    risks.push("Condition unknown");
-  }
-
-  if (!title.includes(queryMainWord)) {
-    score += 10;
-    reasons.push("Loose match may indicate miscategorized opportunity");
-  }
-
-  score = Math.max(0, Math.min(100, score));
-
-  let label = "Ignore";
-
-  if (score >= 90) {
-    label = "Jackpot";
-  } else if (score >= 82) {
-    label = "Strong Opportunity";
-  } else if (score >= 75) {
-    label = "Interesting Find";
-  }
-
-  return {
-    score,
-    label,
-    reasons,
-    risks,
-    estimatedMarketValue: marketValue.estimatedMarketValue,
-    marketConfidence: marketValue.marketConfidence,
-    valueGap: marketValue.valueGap,
-    marketValueSource: marketValue.marketValueSource,
-  };
-}
-
-async function getEbayAccessToken() {
-  const clientId = process.env.EBAY_CLIENT_ID?.trim();
-  const clientSecret = process.env.EBAY_CLIENT_SECRET?.trim();
-
-  if (!clientId || !clientSecret) {
-    throw new Error("Missing EBAY_CLIENT_ID or EBAY_CLIENT_SECRET");
-  }
-
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString(
-    "base64"
-  );
-
-  const response = await fetch("https://api.ebay.com/identity/v1/oauth2/token", {
+  const res = await fetch("https://api.ebay.com/identity/v1/oauth2/token", {
     method: "POST",
     headers: {
       Authorization: `Basic ${credentials}`,
@@ -274,100 +20,365 @@ async function getEbayAccessToken() {
       grant_type: "client_credentials",
       scope: "https://api.ebay.com/oauth/api_scope",
     }),
+    cache: "no-store",
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(JSON.stringify(data));
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`eBay token error: ${text}`);
   }
 
-  return data.access_token as string;
+  const data = await res.json();
+  return data.access_token;
+}
+
+function numberValue(value: any) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function shippingCost(item: any) {
+  return numberValue(item.shippingOptions?.[0]?.shippingCost?.value);
+}
+
+function median(values: number[]) {
+  const clean = values.filter((v) => v > 0).sort((a, b) => a - b);
+  if (!clean.length) return 0;
+
+  const mid = Math.floor(clean.length / 2);
+  return clean.length % 2 ? clean[mid] : (clean[mid - 1] + clean[mid]) / 2;
+}
+
+function cleanTitle(title: string) {
+  return title
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getWords(title: string) {
+  return cleanTitle(title)
+    .split(" ")
+    .filter((word) => word.length > 2)
+    .filter(
+      (word) =>
+        ![
+          "the",
+          "and",
+          "with",
+          "for",
+          "from",
+          "vintage",
+          "rare",
+          "used",
+          "toy",
+          "figure",
+          "complete",
+          "loose",
+          "original",
+          "new",
+        ].includes(word)
+    );
+}
+
+function similarity(a: string, b: string) {
+  const wordsA = new Set(getWords(a));
+  const wordsB = new Set(getWords(b));
+
+  if (!wordsA.size || !wordsB.size) return 0;
+
+  let matches = 0;
+  wordsA.forEach((word) => {
+    if (wordsB.has(word)) matches++;
+  });
+
+  return matches / Math.max(wordsA.size, wordsB.size);
+}
+
+function hasVintageSignal(title: string) {
+  const lowerTitle = title.toLowerCase();
+
+  return (
+    lowerTitle.includes("vintage") ||
+    lowerTitle.includes("1984") ||
+    lowerTitle.includes("1985") ||
+    lowerTitle.includes("1986") ||
+    lowerTitle.includes("1987") ||
+    lowerTitle.includes("1988") ||
+    lowerTitle.includes("1989") ||
+    lowerTitle.includes("hasbro") ||
+    lowerTitle.includes("takara")
+  );
+}
+
+function isModernOrReissue(title: string) {
+  const lowerTitle = title.toLowerCase();
+
+  const badSignals = [
+    "reissue",
+    "re-issue",
+    "reisue",
+    "repro",
+    "reproduction",
+    "new in box",
+    "new box",
+    "new",
+    "k.o",
+    "k.o.",
+    "ko version",
+    "knockoff",
+    "knock off",
+    "transforming toy",
+    "super warrior",
+    "multiforce",
+    "gift toys",
+  ];
+
+  const hasGoodVintageSignal = hasVintageSignal(title);
+
+  if (lowerTitle.includes("new") && !hasGoodVintageSignal) {
+    return true;
+  }
+
+  return badSignals.some((signal) => lowerTitle.includes(signal));
+}
+
+function isBadSeller(seller: string) {
+  const lowerSeller = seller.toLowerCase();
+
+  const badSellers = ["super-fast-shipping-center"];
+
+  return badSellers.some((badSeller) => lowerSeller.includes(badSeller));
+}
+
+async function searchEbay(query: string, token: string, limit = 50) {
+  const url = new URL("https://api.ebay.com/buy/browse/v1/item_summary/search");
+
+  url.searchParams.set("q", query);
+  url.searchParams.set("limit", String(limit));
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "X-EBAY-C-MARKETPLACE-ID": "EBAY_US",
+      "X-EBAY-C-ENDUSERCTX": "contextualLocation=country=US,zip=10001",
+    },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`eBay search error: ${text}`);
+  }
+
+  const data = await res.json();
+  return data.itemSummaries || [];
+}
+
+function makeComparableQuery(title: string) {
+  return getWords(title).slice(0, 5).join(" ");
+}
+
+async function getMarketValueForItem(item: any, token: string) {
+  const title = item.title || "";
+  const query = makeComparableQuery(title);
+
+  if (!query) {
+    return {
+      marketValue: 0,
+      comparableCount: 0,
+      comparableQuery: "",
+    };
+  }
+
+  const results = await searchEbay(query, token, 30);
+
+  const comparablePrices = results
+    .filter((result: any) => !isModernOrReissue(result.title || ""))
+    .filter((result: any) => !isBadSeller(result.seller?.username || ""))
+    .filter((result: any) => similarity(title, result.title || "") >= 0.45)
+    .map((result: any) => {
+      const price = numberValue(result.price?.value);
+      const shipping = shippingCost(result);
+      return price + shipping;
+    })
+    .filter((value: number) => value > 0);
+
+  return {
+    marketValue: Math.round(median(comparablePrices)),
+    comparableCount: comparablePrices.length,
+    comparableQuery: query,
+  };
+}
+
+function hiddenGemScore({
+  totalCost,
+  marketValue,
+  comparableCount,
+  title,
+}: {
+  totalCost: number;
+  marketValue: number;
+  comparableCount: number;
+  title: string;
+}) {
+  if (!marketValue || !totalCost) return 0;
+
+  const profit = marketValue - totalCost;
+
+  if (profit <= 0) return 0;
+
+  let score = 0;
+
+  if (profit >= 20) score += 20;
+  if (profit >= 50) score += 25;
+  if (profit >= 100) score += 30;
+
+  const profitPercentage = profit / totalCost;
+
+  if (profitPercentage >= 0.25) score += 10;
+  if (profitPercentage >= 0.5) score += 15;
+  if (profitPercentage >= 1) score += 20;
+
+  if (comparableCount >= 3) score += 10;
+  if (comparableCount >= 6) score += 10;
+
+  const lower = title.toLowerCase();
+
+  if (lower.includes("vintage")) score += 10;
+  if (lower.includes("1984")) score += 8;
+  if (lower.includes("1985")) score += 8;
+  if (lower.includes("1986")) score += 8;
+  if (lower.includes("1987")) score += 6;
+  if (lower.includes("hasbro")) score += 8;
+  if (lower.includes("takara")) score += 8;
+  if (lower.includes("g1")) score += 5;
+  if (lower.includes("complete")) score += 5;
+  if (lower.includes("box")) score += 4;
+  if (lower.includes("used")) score += 3;
+
+  if (isModernOrReissue(title)) score -= 100;
+
+  return Math.max(0, Math.min(100, score));
+}
+
+function labelFromProfitAndScore({
+  profit,
+  score,
+  comparableCount,
+}: {
+  profit: number;
+  score: number;
+  comparableCount: number;
+}) {
+  if (profit >= 100 && score >= 85 && comparableCount >= 3) {
+    return "Jackpot";
+  }
+
+  if (profit >= 50 && score >= 70 && comparableCount >= 3) {
+    return "Strong Opportunity";
+  }
+
+  if (profit >= 20 && score >= 45 && comparableCount >= 2) {
+    return "Interesting";
+  }
+
+  return "Low Priority";
 }
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get("q") || "Transformers G1";
-    const limit = searchParams.get("limit") || "50";
 
-    const accessToken = await getEbayAccessToken();
+    const token = await getEbayToken();
+    const items = await searchEbay(query, token, 50);
 
-    const ebayUrl = new URL(
-      "https://api.ebay.com/buy/browse/v1/item_summary/search"
-    );
+    const enrichedRaw = await Promise.all(
+      items.slice(0, 50).map(async (item: any) => {
+        const title = item.title || "Unknown item";
+        const seller = item.seller?.username || "Unknown";
 
-    ebayUrl.searchParams.set("q", query);
-    ebayUrl.searchParams.set("limit", limit);
-    ebayUrl.searchParams.set("sort", "newlyListed");
+        if (isModernOrReissue(title)) {
+          return null;
+        }
 
-    const response = await fetch(ebayUrl.toString(), {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "X-EBAY-C-MARKETPLACE-ID": "EBAY_US",
-        "Content-Type": "application/json",
-      },
-    });
+        if (isBadSeller(seller)) {
+          return null;
+        }
 
-    const data = await response.json();
+        const priceValue = numberValue(item.price?.value);
+        const shipping = shippingCost(item);
+        const totalCost = priceValue + shipping;
 
-    if (!response.ok) {
-      return NextResponse.json(
-        {
-          success: false,
-          status: response.status,
-          error: data,
-        },
-        { status: response.status }
-      );
-    }
+        const market = await getMarketValueForItem(item, token);
+        const potentialProfit = market.marketValue - totalCost;
 
-    const items =
-      data.itemSummaries?.map((item: EbayItem) => {
-        const gem = calculateHiddenGemScore(item, query);
+        const score = hiddenGemScore({
+          totalCost,
+          marketValue: market.marketValue,
+          comparableCount: market.comparableCount,
+          title,
+        });
+
+        const roundedProfit = Math.round(potentialProfit);
 
         return {
-          title: item.title || "Unknown title",
-          price: item.price
-            ? `${item.price.value} ${item.price.currency}`
-            : "Unknown",
-          priceValue: Number(item.price?.value || 0),
+          title,
+          price: `${priceValue.toFixed(2)} ${item.price?.currency || "USD"}`,
+          priceValue,
+          shipping,
+          totalCost: Number(totalCost.toFixed(2)),
           condition: item.condition || "Unknown",
           image: item.image?.imageUrl || null,
-          itemUrl: item.itemWebUrl,
-          seller: item.seller?.username || "Unknown",
+          itemUrl: item.itemWebUrl || null,
+          seller,
 
-          hiddenGemScore: gem.score,
-          opportunityLabel: gem.label,
-          reasons: gem.reasons,
-          risks: gem.risks,
+          marketValue: market.marketValue,
+          comparableCount: market.comparableCount,
+          comparableQuery: market.comparableQuery,
+          potentialProfit: roundedProfit,
 
-          estimatedMarketValue: gem.estimatedMarketValue,
-          marketConfidence: gem.marketConfidence,
-          valueGap: gem.valueGap,
-          marketValueSource: gem.marketValueSource,
+          hiddenGemScore: score,
+          opportunityLabel: labelFromProfitAndScore({
+            profit: roundedProfit,
+            score,
+            comparableCount: market.comparableCount,
+          }),
+
+          reasons: [
+            `Market value based on ${market.comparableCount} comparable active listings`,
+            `Total cost incl. shipping: ${totalCost.toFixed(2)}`,
+            `Estimated profit: ${roundedProfit}`,
+          ],
         };
-      }) || [];
+      })
+    );
 
-    const opportunities = items
-      .filter((item: any) => item.hiddenGemScore >= 75)
-      .sort((a: any, b: any) => b.hiddenGemScore - a.hiddenGemScore)
-      .slice(0, 10);
+    const enriched = enrichedRaw.filter(Boolean);
+
+    const opportunities = enriched
+      .filter((item: any) => item.marketValue > 0)
+      .filter((item: any) => item.potentialProfit > 0)
+      .filter((item: any) => item.opportunityLabel !== "Low Priority")
+      .sort((a: any, b: any) => b.hiddenGemScore - a.hiddenGemScore);
 
     return NextResponse.json({
       success: true,
       query,
-      total: data.total || 0,
-      scanned: items.length,
+      total: items.length,
+      scanned: enriched.length,
       opportunitiesFound: opportunities.length,
       opportunities,
+      allResults: enriched,
+      engine: "Sold Price Engine v2.4 - Realistic Profit Labels",
     });
-  } catch (error) {
+  } catch (error: any) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: error.message || "Unknown error",
       },
       { status: 500 }
     );

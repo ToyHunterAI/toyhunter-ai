@@ -7,62 +7,30 @@ export default function Navbar() {
   const pathname = usePathname();
 
   return (
-    <header
-      style={{
-        borderBottom: "1px solid rgba(255,255,255,0.08)",
-        padding: "18px 40px",
-        backgroundColor: "#0f172a",
-        position: "sticky",
-        top: 0,
-        zIndex: 1000,
-      }}
-    >
-      <nav
-        style={{
-          maxWidth: "1100px",
-          margin: "0 auto",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
+    <header style={headerStyle}>
+      <nav style={navStyle}>
         <Link href="/" style={{ textDecoration: "none" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "14px",
-            }}
-          >
+          <div style={brandStyle}>
             <div style={logoRadarStyle}>
-  <div style={logoOuterRingStyle} />
-  <div style={logoMiddleRingStyle} />
-  <div style={logoInnerRingStyle} />
-  <div style={logoHorizontalLineStyle} />
-  <div style={logoVerticalLineStyle} />
-  <span style={logoTextStyle}>TH</span>
-</div>
+              <div style={logoOuterRingStyle} />
+              <div style={logoMiddleRingStyle} />
+              <div style={logoInnerRingStyle} />
+              <div style={logoHorizontalLineStyle} />
+              <div style={logoVerticalLineStyle} />
+              <span style={logoTextStyle}>TH</span>
+            </div>
 
-            <span
-              style={{
-                color: "white",
-                fontSize: "22px",
-                fontWeight: "800",
-                letterSpacing: "0.5px",
-              }}
-            >
-              ToyHunter AI
-            </span>
+            <span style={brandTextStyle}>ToyHunter AI</span>
           </div>
         </Link>
 
-        <div style={{ display: "flex", gap: "24px" }}>
+        <div style={linksStyle}>
           <Link href="/" style={getLinkStyle(pathname === "/")}>
             Home
           </Link>
 
           <Link href="/hunt" style={getLinkStyle(pathname === "/hunt")}>
-            Hunt
+            Daily Hunt
           </Link>
 
           <Link href="/analyse" style={getLinkStyle(pathname === "/analyse")}>
@@ -70,12 +38,16 @@ export default function Navbar() {
           </Link>
 
           <Link href="/sell" style={getLinkStyle(pathname === "/sell")}>
-  Sell
-</Link>
+            Sell
+          </Link>
 
-<Link href="/events" style={getLinkStyle(pathname === "/events")}>
-  Events
-</Link>
+          <Link href="/events" style={getLinkStyle(pathname === "/events")}>
+            Events
+          </Link>
+
+          <Link href="/account" style={accountButtonStyle}>
+            My Account
+          </Link>
         </div>
       </nav>
     </header>
@@ -90,6 +62,51 @@ function getLinkStyle(active: boolean) {
     fontWeight: active ? "700" : "500",
   };
 }
+
+const headerStyle = {
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
+  padding: "18px 40px",
+  backgroundColor: "#0f172a",
+  position: "sticky" as const,
+  top: 0,
+  zIndex: 1000,
+};
+
+const navStyle = {
+  maxWidth: "1100px",
+  margin: "0 auto",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+};
+
+const brandStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "14px",
+};
+
+const brandTextStyle = {
+  color: "white",
+  fontSize: "22px",
+  fontWeight: "800",
+  letterSpacing: "0.5px",
+};
+
+const linksStyle = {
+  display: "flex",
+  gap: "24px",
+  alignItems: "center",
+};
+
+const accountButtonStyle = {
+  textDecoration: "none",
+  color: "#facc15",
+  fontWeight: "800",
+  border: "1px solid rgba(250,204,21,0.4)",
+  padding: "8px 14px",
+  borderRadius: "10px",
+};
 
 const logoRadarStyle = {
   position: "relative" as const,
