@@ -103,17 +103,149 @@ async function searchEbay(query: string, token: string, maxPrice?: number | null
   const data = await response.json();
   return data.itemSummaries || [];
 }
+function buildComparableQuery(title: string) {
+  const stopWords = [
+    "the",
+    "a",
+    "an",
+    "with",
+    "for",
+    "and",
+    "complete",
+    "figure",
+    "toy",
+    "vintage",
+    "new",
+    "used",
+    "lot",
+    "parts",
+    "rare",
+    "original",
+    "sealed",
+    "box",
+    "boxed",
+    "accessory",
+"accessories",
+"projectile",
+"missile",
+"weapon",
+"weapons",
+"space",
+"shuttle",
+"manual",
+"cards",
+"card",
+"insert",
+"inserts",
+"part",
+"parts",
+"repair",
+"body",
+"jet",
+"x4",
+"9pc",
+"stat",
+"read",
+"guide",
+"recognition",
+"book",
+"machine",
+"gun",
+"tech",
+"spec",
+"incomplete",
+  ];
+
+  return title
+    .split(/\s+/)
+    .map((word) => word.replace(/[^\w-]/g, ""))
+    .filter(
+      (word) =>
+        word.length > 2 &&
+!/^\d+$/.test(word) &&
+        !stopWords.includes(word.toLowerCase())
+    )
+    .slice(0, 4)
+    .join(" ");
+}
+
+function getSimilarity(a: string, b: string) {
+  const wordsA = new Set(
+    buildComparableQuery(a)
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean)
+  );
+
+  const wordsB = new Set(
+    buildComparableQuery(b)
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean)
+  );
+
+  const intersection = [...wordsA].filter(
+    (word) => wordsB.has(word)
+  );
+
+  const union = new Set([
+    ...wordsA,
+    ...wordsB,
+  ]);
+
+  if (union.size === 0) {
+    return 0;
+  }
+
+  return intersection.length / union.size;
+}
+function shouldExcludeResult(title: string) {
+  const lower = title.toLowerCase();
+
+  const blockedWords = [
+    "coomodel",
+    "hot toys",
+    "masterpiece",
+    " mp ",
+    "reissue",
+    "custom",
+    "3d",
+    "replica",
+    "star wars",
+    "lego",
+    "meccano",
+    "halloween",
+    "costume",
+    "wearable",
+    "adult mask",
+    "child mask",
+  ];
+
+  return blockedWords.some((word) =>
+    lower.includes(word)
+  );
+}
 async function getMarketValueForItem(item: any, token: string) {
   const title = item.title || "";
-  const query = title
-  .split(" ")
-  .slice(0, 5)
-  .join(" ");
-
+  const query = buildComparableQuery(title);
+  
   const results = await searchEbay(query, token);
 
   const prices = results
-    .map((result: any) => {
+  .filter(
+    (result: any) =>
+      !shouldExcludeResult(
+        result.title || ""
+      )
+  )
+  .filter(
+    (result: any) =>
+      getSimilarity(
+        title,
+        result.title || ""
+      ) >= 0.60
+  )
+  .map((result: any) => {
       const price = Number(result.price?.value || 0);
       const shipping = Number(
         result.shippingOptions?.[0]?.shippingCost?.value || 0

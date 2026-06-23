@@ -68,7 +68,12 @@ export default function DailyHuntPage() {
           .order("found_at", { ascending: false })
           .limit(30);
 
-        setResults(resultData ?? []);
+        console.log("Logged in user:", user.id);
+console.log("Results:", resultData);
+console.log("USER ID:", user.id);
+console.log("RESULTS:", resultData);
+
+setResults(resultData ?? []);
       }
 
       setLoading(false);
