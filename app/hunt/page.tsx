@@ -35,6 +35,7 @@ type MarketplaceListing = {
   id: string; platform: string; title: string; url: string;
   price: number | null; currency: string; image: string | null;
   shipping: number | null; found_at: string | null;
+  price_kind: "auction" | "bid" | "unverified" | "fixed"; price_notice: string;
 };
 
 // Voorselectie op herkenbare vintage speelgoedlijnen; dit is GEEN waardebepaling.
@@ -197,7 +198,7 @@ setResults(resultData ?? []);
 
       <section style={cardStyle}>
         <h2 style={sectionTitleStyle}>Hidden Gem-kandidaten ({candidates.length})</h2>
-        <p style={textStyle}>Automatisch herkende speelgoedlijnen. Nog geen prijsvergelijking of bevestigde koopjes.</p>
+        <p style={textStyle}>Automatisch herkende speelgoedlijnen. Biedingen, veilingen en onbevestigde prijzen tellen niet als koopjes. Ontbrekende foto’s worden gemarkeerd.</p>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "12px 0" }}>
           <button type="button" onClick={() => setViewMode("candidates")} aria-pressed={viewMode === "candidates"}
             style={{ ...secondaryButtonStyle, background: viewMode === "candidates" ? "#12667b" : "#102b35", cursor: "pointer" }}>Kandidaten ({candidates.length})</button>
@@ -225,7 +226,12 @@ setResults(resultData ?? []);
                 <div style={{ color: "#8ce5e7", fontSize: 12, textTransform: "uppercase" }}>{item.platform}</div>
                 {candidateToyline(item.title) && <div style={{ marginTop: 6, color: "#ffca61", fontSize: 12 }}>🔎 {candidateToyline(item.title)} · Nog te beoordelen</div>}
                 <h3 style={{ fontSize: 16, lineHeight: 1.4, margin: "8px 0", overflowWrap: "anywhere" }}>{item.title}</h3>
-                <strong style={{ fontSize: 20 }}>{item.price == null ? "Prijs onbekend" : new Intl.NumberFormat("nl-NL", { style: "currency", currency: item.currency || "EUR" }).format(item.price)}</strong>
+                <div style={{ margin: "8px 0", fontSize: 12, fontWeight: 700, color: item.price_kind === "auction" || item.price_kind === "bid" ? "#ffd184" : "#9adce7" }}>
+                  {item.price_kind === "auction" ? "🔨 Veiling" : item.price_kind === "bid" ? "🔨 Bieden" : "⚠️ Prijs niet geverifieerd"}
+                </div>
+                <strong style={{ fontSize: 20 }}>{item.price == null ? "Prijs onbekend" : (() => { try { return new Intl.NumberFormat("nl-NL", { style: "currency", currency: item.currency || "EUR" }).format(item.price); } catch { return `${item.price} ${item.currency || "EUR"}`; } })()}</strong>
+                <p style={{ fontSize: 12, color: "#a9c5cc", margin: "7px 0 0", lineHeight: 1.45 }}>{item.price_notice || "Prijssoort nog niet gecontroleerd."}</p>
+                {!item.image && <p style={{ fontSize: 12, color: "#ffd184", margin: "6px 0 0" }}>⚠️ Geen foto beschikbaar – handmatige controle nodig.</p>}
                 <div style={{ marginTop: 10, color: "#a6dbe4", fontSize: 13 }}>Bekijk advertentie ↗</div>
               </div>
             </a>
