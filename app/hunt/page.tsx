@@ -67,6 +67,9 @@ export default function DailyHuntPage() {
   const [listingsError, setListingsError] = useState("");
   const [platformFilter, setPlatformFilter] = useState("all");
   const [viewMode, setViewMode] = useState<"candidates" | "all">("candidates");
+  const [showAuctions, setShowAuctions] = useState(false);
+  const [todayOnly, setTodayOnly] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadDailyHunt() {
@@ -120,7 +123,11 @@ setResults(resultData ?? []);
 
   const candidates = listings.filter(item => candidateToyline(item.title) !== null);
   const visibleListings = (viewMode === "candidates" ? candidates : listings)
-    .filter(item => platformFilter === "all" || item.platform === platformFilter);
+    .filter(item => platformFilter === "all" || item.platform === platformFilter)
+    .filter(item => showAuctions || item.price_kind !== "auction")
+    .filter(item => !todayOnly || (item.found_at && new Date(item.found_at).toDateString() === new Date().toDateString()));
+  const todayCount = listings.filter(item => item.found_at && new Date(item.found_at).toDateString() === new Date().toDateString()).length;
+  const auctionCount = listings.filter(item => item.price_kind === "auction").length;
 
   if (loading) {
     return (
@@ -152,92 +159,49 @@ setResults(resultData ?? []);
 
   return (
     <main className="th-page th-hunt" style={pageStyle}>
-      <section style={headerStyle}>
-        <p style={eyebrowStyle}>ToyHunter AI</p>
-        <h1 style={titleStyle}>Daily Hunt</h1>
-        <p style={subtitleStyle}>
-          Echte speelgoedadvertenties uit onze database. Waardebepaling volgt later.
-        </p>
-
-        <div style={profileBoxStyle}>
-          <div>
-            <span style={smallLabelStyle}>Signed in as</span>
-            <strong>{email}</strong>
-          </div>
-
-          <div>
-            <span style={smallLabelStyle}>Active profile</span>
-            <strong>{profile?.toy_categories?.length ?? 0} toy targets</strong>
-          </div>
-
-          <div>
-            <span style={smallLabelStyle}>Platforms</span>
-            <strong>{profile?.platforms?.join(", ") || "Nog niet ingesteld"}</strong>
-          </div>
-
-          <div>
-            <span style={smallLabelStyle}>Budget</span>
-            <strong>€{profile?.max_budget ?? 0}</strong>
-          </div>
-
-          <div>
-            <span style={smallLabelStyle}>Minimum profit</span>
-            <strong>€{profile?.minimum_profit ?? 0}</strong>
-          </div>
+      <section style={{ maxWidth: 1100, margin: "0 auto 18px" }}>
+        <p style={{ color: "#8ce5e7", fontSize: 12, letterSpacing: 2, fontWeight: 800, margin: 0 }}>TOYHUNTER DAILY</p>
+        <h1 style={{ margin: "6px 0", fontSize: "clamp(27px, 6vw, 42px)" }}>Nieuwe vondsten</h1>
+        <p style={{ color: "#9abcc4", margin: "0 0 14px", fontSize: 13 }}>{new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "long" }).format(new Date())} · {todayCount} vandaag · {listings.length} recent · {auctionCount} veilingen</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, alignItems: "center" }}>
+          <button type="button" onClick={() => setViewMode("candidates")} aria-pressed={viewMode === "candidates"} style={pill(viewMode === "candidates")}>🔎 Kandidaten</button>
+          <button type="button" onClick={() => setViewMode("all")} aria-pressed={viewMode === "all"} style={pill(viewMode === "all")}>Alles</button>
+          <button type="button" onClick={() => setTodayOnly(!todayOnly)} aria-pressed={todayOnly} style={pill(todayOnly)}>🆕 Vandaag</button>
+          <button type="button" onClick={() => setShowAuctions(!showAuctions)} aria-pressed={showAuctions} style={pill(showAuctions)}>🔨 Veilingen {showAuctions ? "aan" : "uit"}</button>
         </div>
-
-        <div className="th-actions" style={buttonRowStyle}>
-          <Link href="/hunt-setup" style={secondaryButtonStyle}>
-            Edit Hunt Settings
-          </Link>
-          <Link href="/account" style={secondaryButtonStyle}>
-            Back to My Account
-          </Link>
-        </div>
-      </section>
-
-      <section style={cardStyle}>
-        <h2 style={sectionTitleStyle}>Hidden Gem-kandidaten ({candidates.length})</h2>
-        <p style={textStyle}>Automatisch herkende speelgoedlijnen. Biedingen, veilingen en onbevestigde prijzen tellen niet als koopjes. Ontbrekende foto’s worden gemarkeerd.</p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "12px 0" }}>
-          <button type="button" onClick={() => setViewMode("candidates")} aria-pressed={viewMode === "candidates"}
-            style={{ ...secondaryButtonStyle, background: viewMode === "candidates" ? "#12667b" : "#102b35", cursor: "pointer" }}>Kandidaten ({candidates.length})</button>
-          <button type="button" onClick={() => setViewMode("all")} aria-pressed={viewMode === "all"}
-            style={{ ...secondaryButtonStyle, background: viewMode === "all" ? "#12667b" : "#102b35", cursor: "pointer" }}>Alle advertenties ({listings.length})</button>
-        </div>
-        <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "10px 0 18px" }}>
+        <div style={{ display: "flex", gap: 7, overflowX: "auto", padding: "12px 0" }}>
           {["all", ...Array.from(new Set(listings.map(x => x.platform)))].map(platform => (
-            <button key={platform} onClick={() => setPlatformFilter(platform)}
-              style={{ border: "1px solid #247e91", background: platformFilter === platform ? "#12667b" : "#102b35", color: "white", borderRadius: 20, padding: "9px 13px", whiteSpace: "nowrap", cursor: "pointer" }}>
-              {platform === "all" ? "Alles" : platform}
-            </button>
-          ))}
-        </div>
-        {listingsError && <p role="alert">{listingsError}</p>}
-        {!listingsError && listings.length === 0 && <p style={textStyle}>Nog geen advertenties beschikbaar.</p>}
-        {viewMode === "candidates" && candidates.length === 0 && !listingsError && <p style={textStyle}>Geen herkenbare kandidaten in de laatste advertenties. Kies ‘Alle advertenties’ om alles te bekijken.</p>}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 230px), 1fr))", gap: 14 }}>
-          {visibleListings.map(item => (
-            <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer"
-              style={{ display: "block", overflow: "hidden", borderRadius: 15, border: "1px solid #1c5666", background: "#102c36", textDecoration: "none", color: "white" }}>
-              {item.image ? <img src={item.image} alt="" loading="lazy" style={{ width: "100%", height: 190, objectFit: "contain", background: "#091b24" }} />
-                : <div style={{ height: 100, display: "grid", placeItems: "center", color: "#91b6bf" }}>Geen foto</div>}
-              <div style={{ padding: 14 }}>
-                <div style={{ color: "#8ce5e7", fontSize: 12, textTransform: "uppercase" }}>{item.platform}</div>
-                {candidateToyline(item.title) && <div style={{ marginTop: 6, color: "#ffca61", fontSize: 12 }}>🔎 {candidateToyline(item.title)} · Nog te beoordelen</div>}
-                <h3 style={{ fontSize: 16, lineHeight: 1.4, margin: "8px 0", overflowWrap: "anywhere" }}>{item.title}</h3>
-                <div style={{ margin: "8px 0", fontSize: 12, fontWeight: 700, color: item.price_kind === "auction" || item.price_kind === "bid" ? "#ffd184" : "#9adce7" }}>
-                  {item.price_kind === "auction" ? "🔨 Veiling" : item.price_kind === "bid" ? "🔨 Startbod" : item.price_kind === "fixed" ? "🏷️ Vaste vraagprijs" : "⚠️ Prijs niet geverifieerd"}
-                </div>
-                <strong style={{ fontSize: 20 }}>{item.price == null ? "Prijs onbekend" : (() => { try { return new Intl.NumberFormat("nl-NL", { style: "currency", currency: item.currency || "EUR" }).format(item.price); } catch { return `${item.price} ${item.currency || "EUR"}`; } })()}</strong>
-                <p style={{ fontSize: 12, color: "#a9c5cc", margin: "7px 0 0", lineHeight: 1.45 }}>{item.price_notice || "Prijssoort nog niet gecontroleerd."}</p>
-                {!item.image && <p style={{ fontSize: 12, color: "#ffd184", margin: "6px 0 0" }}>⚠️ Geen foto beschikbaar – handmatige controle nodig.</p>}
-                <div style={{ marginTop: 10, color: "#a6dbe4", fontSize: 13 }}>Bekijk advertentie ↗</div>
-              </div>
-            </a>
+            <button key={platform} type="button" onClick={() => setPlatformFilter(platform)} style={{ ...pill(platformFilter === platform), flexShrink: 0, fontSize: 11 }}>{platform === "all" ? "Alle platforms" : platform}</button>
           ))}
         </div>
       </section>
+      <section style={{ maxWidth: 1100, margin: "0 auto" }}>
+        {listingsError && <p role="alert">{listingsError}</p>}
+        {!listingsError && visibleListings.length === 0 && <p style={{ color: "#a9c5cc" }}>Geen advertenties met deze filters. Probeer ‘Alles’ of zet veilingen aan.</p>}
+        <div className="th-daily-grid">
+          {visibleListings.map(item => (
+            <article key={item.id} style={{ minWidth: 0, overflow: "hidden", borderRadius: 14, border: "1px solid #1c5666", background: "#102c36" }}>
+              <a href={item.url} target="_blank" rel="noopener noreferrer" aria-label={`Bekijk ${item.title}`} style={{ display: "block", textDecoration: "none", color: "white" }}>
+                <div style={{ position: "relative", background: "#091b24", aspectRatio: "1 / 1" }}>
+                  {item.image ? <img src={item.image} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <div style={{ height: "100%", display: "grid", placeItems: "center", color: "#91b6bf", fontSize: 12 }}>Geen foto</div>}
+                  <span title={item.price_notice} style={{ position: "absolute", top: 8, right: 8, background: "#061b24ed", borderRadius: 9, padding: "5px 8px", fontSize: 15 }}>
+                    {item.price_kind === "auction" ? "🔨" : item.price_kind === "bid" ? "🤝" : item.price_kind === "fixed" ? "🏷️" : "⚠️"}
+                  </span>
+                </div>
+                <div style={{ padding: "10px 11px 4px" }}>
+                  <div style={{ fontSize: 10, color: "#8ce5e7", textTransform: "uppercase", letterSpacing: .5 }}>{item.platform}</div>
+                  <h2 style={{ fontSize: 13, lineHeight: 1.3, margin: "5px 0 8px", fontWeight: 650, height: "2.6em", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>{item.title}</h2>
+                  <strong style={{ fontSize: 18 }}>{item.price == null ? "Prijs onbekend" : (() => { try { return new Intl.NumberFormat("nl-NL", { style: "currency", currency: item.currency || "EUR", maximumFractionDigits: 2 }).format(item.price); } catch { return `${item.price} ${item.currency || "EUR"}`; } })()}</strong>
+                  <span style={{ display: "block", fontSize: 10, color: "#a9c5cc", marginTop: 3 }}>{item.price_kind === "auction" ? "Veiling" : item.price_kind === "bid" ? "Startbod" : item.price_kind === "fixed" ? "Vraagprijs" : "Prijs onbevestigd"}</span>
+                </div>
+              </a>
+              <button type="button" onClick={() => setExpandedId(expandedId === item.id ? null : item.id)} aria-expanded={expandedId === item.id} style={{ background: "none", border: 0, color: "#9bdce7", padding: "8px 11px 11px", fontSize: 11, cursor: "pointer", textAlign: "left" }}>{expandedId === item.id ? "Minder info ↑" : "Details ↓"}</button>
+              {expandedId === item.id && <div style={{ padding: "0 11px 12px", color: "#b8d0d6", fontSize: 11, lineHeight: 1.5 }}><p style={{ margin: "0 0 6px" }}>{item.price_notice}</p>{candidateToyline(item.title) && <p style={{ margin: 0 }}>🔎 {candidateToyline(item.title)} · Nog niet op waarde beoordeeld</p>}</div>}
+            </article>
+          ))}
+        </div>
+      </section>
+      <style jsx>{`@media (max-width: 600px) { .th-daily-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; } } @media (min-width: 601px) { .th-daily-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; } } .th-daily-grid { display: grid; }`}</style>
       <section style={cardStyle}>
         <h2 style={sectionTitleStyle}>Beoordeelde Hidden Gems</h2>
 
@@ -301,11 +265,15 @@ setResults(resultData ?? []);
   );
 }
 
+function pill(active: boolean) {
+  return { background: active ? "#12667b" : "#102b35", border: "1px solid #247e91", borderRadius: 20, padding: "8px 11px", color: "white", cursor: "pointer", fontSize: 12, fontWeight: 600 };
+}
+
 const pageStyle = {
   minHeight: "100vh",
   background: "linear-gradient(180deg, #020617 0%, #111827 100%)",
   color: "white",
-  padding: "40px 24px",
+  padding: "22px 12px",
 };
 
 const headerStyle = {
