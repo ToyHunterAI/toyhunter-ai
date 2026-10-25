@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { createClient } from "../../src/lib/supabase/client";
 
 type HuntProfile = {
@@ -57,7 +57,7 @@ function candidateToyline(title: string): string | null {
 }
 
 export default function DailyHuntPage() {
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
   const [email, setEmail] = useState<string | null>(null);
   const [profile, setProfile] = useState<HuntProfile | null>(null);
@@ -70,48 +70,115 @@ export default function DailyHuntPage() {
   const [showAuctions, setShowAuctions] = useState(false);
   const [todayOnly, setTodayOnly] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [choices, setChoices] = useState<Record<string, "saved" | "dismissed">>({});
-  const [folder, setFolder] = useState<"hunt" | "saved" | "dismissed">("hunt");
+  type Choice = "saved" | "dismissed";
+  const [choices, setChoices] = useState<Record<string, Choice>>({});
+  const choicesRef = useRef<Record<string, Choice>>({});
+  const [folder, setFolder] = useState<"hunt" | "finds">("hunt");
+  const [findsTab, setFindsTab] = useState<Choice>("saved");
   const [showSwipeTip, setShowSwipeTip] = useState(false);
-  const [swipeFlash, setSwipeFlash] = useState<{ id: string; choice: "saved" | "dismissed" } | null>(null);
-  const [undo, setUndo] = useState<{ id: string; previous?: "saved" | "dismissed" } | null>(null);
-  const touchStart = useRef<{ x: number; y: number; id: string } | null>(null);
-  const preventClick = useRef(false);
-  const [storageKey, setStorageKey] = useState("");
+  const [swipeFlash, setSwipeFlash] = useState<{ id: string; choice: Choice } | null>(null);
+  const [undo, setUndo] = useState<{ id: string; previous?: Choice } | null>(null);
+  const [storageError, setStorageError] = useState("");
+  const storageKey = useRef("");
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gesture = useRef<{ x: number; y: number; id: string; pointerId: number; axis: "x" | "y" | null } | null>(null);
+  const [drag, setDrag] = useState<{ id: string; x: number } | null>(null);
+  const suppressClickUntil = useRef(0);
 
-  useEffect(() => {
-    if (!storageKey) return;
+  useEffect(() => () => {
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+  }, []);
+
+  function persist(key: string, value: string) {
     try {
-      const stored = JSON.parse(localStorage.getItem(storageKey) || "{}");
-      setChoices(stored && typeof stored === "object" && !Array.isArray(stored) ? stored : {});
-      setShowSwipeTip(localStorage.getItem(storageKey + ":tip") !== "seen");
-    } catch { setChoices({}); }
-  }, [storageKey]);
+      localStorage.setItem(key, value);
+    } catch {
+      setStorageError("Opslaan op dit apparaat is niet gelukt. Houd deze pagina open; je keuzes kunnen bij herladen verloren gaan.");
+    }
+  }
 
-  function decide(id: string, choice: "saved" | "dismissed") {
-    const previous = choices[id];
-    setSwipeFlash({ id, choice });
+  function updateChoices(next: Record<string, Choice>) {
+    choicesRef.current = next;
+    setChoices(next);
+    if (storageKey.current) persist(storageKey.current, JSON.stringify(next));
+  }
+
+  function clearFlash() {
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = null;
+    setSwipeFlash(null);
+  }
+
+  function decide(id: string, choice: Choice) {
+    // Commit immediately. Only the visual feedback is delayed, so undo/reload
+    // cannot race with a pending decision timer.
+    const previous = choicesRef.current[id];
     setUndo({ id, previous });
+    updateChoices({ ...choicesRef.current, [id]: choice });
+    clearFlash();
+    setSwipeFlash({ id, choice });
     setShowSwipeTip(false);
-    if (storageKey) localStorage.setItem(storageKey + ":tip", "seen");
-    window.setTimeout(() => {
-      setChoices(current => {
-        const next = { ...current, [id]: choice };
-        if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next));
-        return next;
-      });
-      setSwipeFlash(current => current?.id === id ? null : current);
-    }, 380);
+    if (storageKey.current) persist(storageKey.current + ":tip", "seen");
+    flashTimer.current = setTimeout(() => {
+      setSwipeFlash(null);
+      flashTimer.current = null;
+    }, 420);
   }
 
   function undoLast() {
     if (!undo) return;
-    const next = { ...choices };
+    clearFlash();
+    const next = { ...choicesRef.current };
     if (undo.previous) next[undo.id] = undo.previous;
     else delete next[undo.id];
-    setChoices(next);
-    if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next));
+    updateChoices(next);
     setUndo(null);
+  }
+
+  function restore(id: string) {
+    const next = { ...choicesRef.current };
+    delete next[id];
+    updateChoices(next);
+    clearFlash();
+    if (undo?.id === id) setUndo(null);
+  }
+
+  function startSwipe(e: PointerEvent<HTMLElement>, id: string) {
+    if (folder !== "hunt" || !e.isPrimary || e.button !== 0 ||
+        (e.target as HTMLElement).closest("button, input, select, textarea")) return;
+    gesture.current = { x: e.clientX, y: e.clientY, id, pointerId: e.pointerId, axis: null };
+  }
+
+  function moveSwipe(e: PointerEvent<HTMLElement>) {
+    const start = gesture.current;
+    if (!start || start.pointerId !== e.pointerId) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    if (!start.axis && Math.max(Math.abs(dx), Math.abs(dy)) > 10) {
+      if (Math.abs(dx) > Math.abs(dy) * 1.2) {
+        start.axis = "x";
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } else {
+        start.axis = "y";
+      }
+    }
+    if (start.axis === "x") {
+      suppressClickUntil.current = e.timeStamp + 500;
+      setDrag({ id: start.id, x: dx });
+    }
+  }
+
+  function endSwipe(e: PointerEvent<HTMLElement>, cancelled = false) {
+    const start = gesture.current;
+    if (!start || start.pointerId !== e.pointerId) return;
+    gesture.current = null;
+    setDrag(null);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    if (start.axis !== "x") return;
+    suppressClickUntil.current = e.timeStamp + 500;
+    const dx = e.clientX - start.x;
+    const threshold = Math.max(56, Math.min(80, e.currentTarget.clientWidth * .22));
+    if (!cancelled && Math.abs(dx) >= threshold) decide(start.id, dx > 0 ? "saved" : "dismissed");
   }
 
 
@@ -126,12 +193,43 @@ export default function DailyHuntPage() {
       }
 
       setEmail(user.email ?? null);
-      setStorageKey(`toyhunter:swipes:v1:${user.id}`);
+      const key = `toyhunter:swipes:v1:${user.id}`;
+      storageKey.current = key;
+      let cached: MarketplaceListing[] = [];
+      try {
+        const stored = JSON.parse(localStorage.getItem(key) || "{}");
+        const valid: Record<string, Choice> = {};
+        if (stored && typeof stored === "object" && !Array.isArray(stored)) {
+          for (const [id, choice] of Object.entries(stored)) {
+            if (choice === "saved" || choice === "dismissed") valid[id] = choice;
+          }
+        }
+        choicesRef.current = valid;
+        setChoices(valid);
+        setShowSwipeTip(localStorage.getItem(key + ":tip") !== "seen");
+      } catch {
+        setShowSwipeTip(true);
+        setStorageError("Eerdere keuzes konden niet worden gelezen op dit apparaat.");
+      }
+      try {
+        const storedListings = JSON.parse(localStorage.getItem(key + ":listings") || "[]");
+        if (Array.isArray(storedListings)) cached = storedListings.filter(item =>
+          item && typeof item.id === "string" && typeof item.title === "string" &&
+          typeof item.platform === "string" && typeof item.url === "string");
+      } catch { /* A damaged cache must not prevent fetching current listings. */ }
+      setListings(cached);
       try {
         const response = await fetch("/api/hunt/listings", { cache: "no-store" });
         if (!response.ok) throw new Error("Advertenties konden niet worden opgehaald");
         const payload = await response.json();
-        setListings(payload.listings ?? []);
+        // The API returns only the latest 100. Keep previously seen listings,
+        // including undecided ones, across days and after feed rotation.
+        const merged = new Map(cached.map(item => [item.id, item]));
+        const incoming: MarketplaceListing[] = payload.listings ?? [];
+        for (const item of incoming) merged.set(item.id, item);
+        const allListings = [...incoming, ...Array.from(merged.values()).filter(item => !incoming.some(newItem => newItem.id === item.id))];
+        setListings(allListings);
+        persist(key + ":listings", JSON.stringify(allListings));
       } catch {
         setListingsError("Advertenties ophalen mislukt. Probeer de pagina opnieuw.");
       }
@@ -167,11 +265,13 @@ setResults(resultData ?? []);
   }, [supabase]);
 
   const candidates = listings.filter(item => candidateToyline(item.title) !== null);
-  const visibleListings = (viewMode === "candidates" ? candidates : listings)
+  const visibleListings = folder === "finds"
+    ? listings.filter(item => choices[item.id] === findsTab)
+    : (viewMode === "candidates" ? candidates : listings)
     .filter(item => platformFilter === "all" || item.platform === platformFilter)
     .filter(item => showAuctions || item.price_kind !== "auction")
     .filter(item => !todayOnly || (item.found_at && new Date(item.found_at).toDateString() === new Date().toDateString()))
-    .filter(item => folder === "hunt" ? !choices[item.id] : choices[item.id] === folder);
+    .filter(item => !choices[item.id] || swipeFlash?.id === item.id);
   const todayCount = listings.filter(item => item.found_at && new Date(item.found_at).toDateString() === new Date().toDateString()).length;
   const auctionCount = listings.filter(item => item.price_kind === "auction").length;
 
@@ -207,16 +307,20 @@ setResults(resultData ?? []);
     <main className="th-page th-hunt" style={pageStyle}>
       <section style={{ maxWidth: 1100, margin: "0 auto 18px" }}>
         <p style={{ color: "#8ce5e7", fontSize: 12, letterSpacing: 2, fontWeight: 800, margin: 0 }}>TOYHUNTER DAILY</p>
-        <h1 style={{ margin: "6px 0", fontSize: "clamp(27px, 6vw, 42px)" }}>Nieuwe vondsten</h1>
+        <h1 style={{ margin: "6px 0", fontSize: "clamp(27px, 6vw, 42px)" }}>{folder === "hunt" ? "Nieuwe vondsten" : "Mijn vondsten"}</h1>
         <p style={{ color: "#9abcc4", margin: "0 0 14px", fontSize: 13 }}>{new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "long" }).format(new Date())} · {todayCount} vandaag · {listings.length} recent · {auctionCount} veilingen</p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 7, alignItems: "center", marginBottom: 10 }}>
           <button type="button" style={pill(folder === "hunt")} onClick={() => setFolder("hunt")}>🔎 Hunt</button>
-          <button type="button" style={pill(folder === "saved")} onClick={() => setFolder("saved")}>❤️ Bewaard ({Object.values(choices).filter(x => x === "saved").length})</button>
-          <button type="button" style={pill(folder === "dismissed")} onClick={() => setFolder("dismissed")}>👎 Niet interessant</button>
+          <button type="button" style={pill(folder === "finds")} onClick={() => setFolder("finds")}>Mijn vondsten</button>
           {undo && <button type="button" style={pill(false)} onClick={undoLast}>↩ Ongedaan maken</button>}
         </div>
-        {folder === "hunt" && showSwipeTip && <div style={{ color: "#b9e7ed", background: "#123944", padding: "10px 12px", borderRadius: 10, fontSize: 13, marginBottom: 12 }}>SWIPE 👈 Niet geïnteresseerd · ❤️ Bewaren 👉</div>}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, alignItems: "center" }}>
+        {storageError && <p role="alert">{storageError}</p>}
+        {folder === "finds" && <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
+          <button type="button" aria-pressed={findsTab === "saved"} style={pill(findsTab === "saved")} onClick={() => setFindsTab("saved")}>❤️ Bewaard ({Object.values(choices).filter(x => x === "saved").length})</button>
+          <button type="button" aria-pressed={findsTab === "dismissed"} style={pill(findsTab === "dismissed")} onClick={() => setFindsTab("dismissed")}>👎 Niet geïnteresseerd ({Object.values(choices).filter(x => x === "dismissed").length})</button>
+        </div>}
+        {folder === "hunt" && showSwipeTip && <div style={{ color: "#b9e7ed", background: "#123944", padding: "10px 12px", borderRadius: 10, fontSize: 13, marginBottom: 12 }}>SWIPE 👈 Niet geïnteresseerd | ❤️ Bewaren 👉</div>}
+        {folder === "hunt" && <><div style={{ display: "flex", flexWrap: "wrap", gap: 7, alignItems: "center" }}>
           <button type="button" onClick={() => setViewMode("candidates")} aria-pressed={viewMode === "candidates"} style={pill(viewMode === "candidates")}>🔎 Kandidaten</button>
           <button type="button" onClick={() => setViewMode("all")} aria-pressed={viewMode === "all"} style={pill(viewMode === "all")}>Alles</button>
           <button type="button" onClick={() => setTodayOnly(!todayOnly)} aria-pressed={todayOnly} style={pill(todayOnly)}>🆕 Vandaag</button>
@@ -226,7 +330,7 @@ setResults(resultData ?? []);
           {["all", ...Array.from(new Set(listings.map(x => x.platform)))].map(platform => (
             <button key={platform} type="button" onClick={() => setPlatformFilter(platform)} style={{ ...pill(platformFilter === platform), flexShrink: 0, fontSize: 11 }}>{platform === "all" ? "Alle platforms" : platform}</button>
           ))}
-        </div>
+        </div></>}
       </section>
       <section style={{ maxWidth: 1100, margin: "0 auto" }}>
         {listingsError && <p role="alert">{listingsError}</p>}
@@ -234,19 +338,17 @@ setResults(resultData ?? []);
         <div className="th-daily-grid">
           {visibleListings.map(item => (
             <article key={item.id}
-              onTouchStart={e => { const t = e.touches[0]; touchStart.current = { x: t.clientX, y: t.clientY, id: item.id }; }}
-              onTouchEnd={e => {
-                const start = touchStart.current; touchStart.current = null;
-                if (!start || start.id !== item.id || folder !== "hunt") return;
-                const t = e.changedTouches[0]; const dx = t.clientX - start.x; const dy = t.clientY - start.y;
-                if (Math.abs(dx) > 65 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-                  preventClick.current = true;
-                  decide(item.id, dx > 0 ? "saved" : "dismissed");
-                  window.setTimeout(() => { preventClick.current = false; }, 500);
-                }
+              onPointerDown={e => startSwipe(e, item.id)}
+              onPointerMove={moveSwipe}
+              onPointerUp={e => endSwipe(e)}
+              onPointerCancel={e => endSwipe(e, true)}
+              onLostPointerCapture={e => { if (e.target === e.currentTarget) endSwipe(e, true); }}
+              onDragStart={e => e.preventDefault()}
+              onClickCapture={e => {
+                if (e.timeStamp < suppressClickUntil.current) { e.preventDefault(); e.stopPropagation(); }
               }}
-              style={{ minWidth: 0, overflow: "hidden", borderRadius: 14, border: "1px solid #1c5666", background: "#102c36", position: "relative", touchAction: "pan-y" }}>
-              <a href={item.url} onClick={e => { if (preventClick.current) e.preventDefault(); }} target="_blank" rel="noopener noreferrer" aria-label={`Bekijk ${item.title}`} style={{ display: "block", textDecoration: "none", color: "white" }}>
+              style={{ minWidth: 0, overflow: "hidden", borderRadius: 14, border: "1px solid #1c5666", background: "#102c36", position: "relative", touchAction: "pan-y pinch-zoom", transform: drag?.id === item.id ? `translateX(${Math.max(-110, Math.min(110, drag.x))}px) rotate(${Math.max(-6, Math.min(6, drag.x / 20))}deg)` : undefined, transition: drag?.id === item.id ? "none" : "transform 180ms ease-out" }}>
+              <a href={item.url} target="_blank" rel="noopener noreferrer" aria-label={`Bekijk ${item.title}`} style={{ display: "block", textDecoration: "none", color: "white" }}>
                 <div style={{ position: "relative", background: "#091b24", aspectRatio: "1 / 1" }}>
                   {item.image ? <img src={item.image} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <div style={{ height: "100%", display: "grid", placeItems: "center", color: "#91b6bf", fontSize: 12 }}>Geen foto</div>}
                   {item.price_kind !== "unverified" && <span title={item.price_notice} style={{ position: "absolute", top: 8, right: 8, background: "#061b24ed", borderRadius: 9, padding: "5px 8px", fontSize: 15 }}>
@@ -260,16 +362,20 @@ setResults(resultData ?? []);
                   <span style={{ display: "block", fontSize: 10, color: "#a9c5cc", marginTop: 3 }}>{item.price_kind === "auction" ? "Veiling" : item.price_kind === "bid" ? "Startbod" : item.price_kind === "fixed" ? "Vraagprijs" : ""}</span>
                 </div>
               </a>
-              {swipeFlash?.id === item.id && <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "#05191bd9", fontSize: 74, zIndex: 3, pointerEvents: "none", animation: "thSwipeFade 380ms ease-out forwards" }}>{swipeFlash.choice === "saved" ? "❤️" : "👎"}</div>}
-              {folder !== "hunt" && <button type="button" onClick={() => { const next = { ...choices }; delete next[item.id]; setChoices(next); if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next)); }} style={{ margin: "8px 11px 0", padding: "6px 9px", background: "#214c57", border: 0, borderRadius: 7, color: "white" }}>↩ Terug naar Hunt</button>}
+              {(swipeFlash?.id === item.id || (drag?.id === item.id && Math.abs(drag.x) > 10)) && <div aria-hidden="true" style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "#05191bd9", fontSize: 74, zIndex: 3, pointerEvents: "none", opacity: swipeFlash?.id === item.id ? undefined : Math.min(1, Math.abs(drag?.x ?? 0) / 80), animation: swipeFlash?.id === item.id ? "thSwipeFade 420ms ease-out forwards" : undefined }}>{(swipeFlash?.id === item.id ? swipeFlash.choice === "saved" : (drag?.x ?? 0) > 0) ? "❤️" : "👎"}</div>}
+              {folder === "hunt" ? <div style={{ display: "flex", gap: 8, padding: "8px 11px 0" }}>
+                <button type="button" onClick={() => decide(item.id, "dismissed")} style={pill(false)}>👎 Niet geïnteresseerd</button>
+                <button type="button" onClick={() => decide(item.id, "saved")} style={pill(false)}>❤️ Bewaren</button>
+              </div> : <button type="button" onClick={() => restore(item.id)} style={{ margin: "8px 11px 0", padding: "6px 9px", background: "#214c57", border: 0, borderRadius: 7, color: "white" }}>↩ Terug naar Hunt</button>}
+
               <button type="button" onClick={() => setExpandedId(expandedId === item.id ? null : item.id)} aria-expanded={expandedId === item.id} style={{ background: "none", border: 0, color: "#9bdce7", padding: "8px 11px 11px", fontSize: 11, cursor: "pointer", textAlign: "left" }}>{expandedId === item.id ? "Minder info ↑" : "Details ↓"}</button>
               {expandedId === item.id && <div style={{ padding: "0 11px 12px", color: "#b8d0d6", fontSize: 11, lineHeight: 1.5 }}><p style={{ margin: "0 0 6px" }}>{item.price_notice}</p>{candidateToyline(item.title) && <p style={{ margin: 0 }}>🔎 {candidateToyline(item.title)} · Nog niet op waarde beoordeeld</p>}</div>}
             </article>
           ))}
         </div>
       </section>
-      <style jsx>{`@keyframes thSwipeFade { from { opacity: 0; transform: scale(.7); } 30% { opacity: 1; transform: scale(1.1); } to { opacity: 0; transform: scale(1); } } @media (max-width: 600px) { .th-daily-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; } } @media (min-width: 601px) { .th-daily-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; } } .th-daily-grid { display: grid; }`}</style>
-      <section style={cardStyle}>
+      <style jsx>{`@keyframes thSwipeFade { from { opacity: 0; transform: scale(.7); } 30% { opacity: 1; transform: scale(1.1); } to { opacity: 0; transform: scale(1); } } @media (max-width: 767px) { .th-daily-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; } } @media (min-width: 768px) { .th-daily-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; } } .th-daily-grid { display: grid; }`}</style>
+      {folder === "hunt" && <section style={cardStyle}>
         <h2 style={sectionTitleStyle}>Beoordeelde Hidden Gems</h2>
 
         {results.length === 0 ? (
@@ -327,7 +433,7 @@ setResults(resultData ?? []);
             ))}
           </div>
         )}
-      </section>
+      </section>}
     </main>
   );
 }
