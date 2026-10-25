@@ -76,17 +76,17 @@ export default function DailyHuntPage() {
   const [folder, setFolder] = useState<"hunt" | "finds">("hunt");
   const [findsTab, setFindsTab] = useState<Choice>("saved");
   const [showSwipeTip, setShowSwipeTip] = useState(false);
-  const [swipeFlash, setSwipeFlash] = useState<{ id: string; choice: Choice } | null>(null);
+  const [swipeFlash, setSwipeFlash] = useState<Record<string, Choice>>({});
   const [undo, setUndo] = useState<{ id: string; previous?: Choice } | null>(null);
   const [storageError, setStorageError] = useState("");
   const storageKey = useRef("");
-  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const gesture = useRef<{ x: number; y: number; id: string; pointerId: number; axis: "x" | "y" | null } | null>(null);
   const [drag, setDrag] = useState<{ id: string; x: number } | null>(null);
   const suppressClickUntil = useRef(0);
 
   useEffect(() => () => {
-    if (flashTimer.current) clearTimeout(flashTimer.current);
+    for (const timer of flashTimers.current.values()) clearTimeout(timer);
   }, []);
 
   function persist(key: string, value: string) {
@@ -103,31 +103,35 @@ export default function DailyHuntPage() {
     if (storageKey.current) persist(storageKey.current, JSON.stringify(next));
   }
 
-  function clearFlash() {
-    if (flashTimer.current) clearTimeout(flashTimer.current);
-    flashTimer.current = null;
-    setSwipeFlash(null);
+  function clearFlash(id: string) {
+    const timer = flashTimers.current.get(id);
+    if (timer) clearTimeout(timer);
+    flashTimers.current.delete(id);
+    setSwipeFlash(current => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
   }
 
   function decide(id: string, choice: Choice) {
     // Commit immediately. Only the visual feedback is delayed, so undo/reload
     // cannot race with a pending decision timer.
+    if (flashTimers.current.has(id)) return;
     const previous = choicesRef.current[id];
     setUndo({ id, previous });
     updateChoices({ ...choicesRef.current, [id]: choice });
-    clearFlash();
-    setSwipeFlash({ id, choice });
+    setSwipeFlash(current => ({ ...current, [id]: choice }));
     setShowSwipeTip(false);
     if (storageKey.current) persist(storageKey.current + ":tip", "seen");
-    flashTimer.current = setTimeout(() => {
-      setSwipeFlash(null);
-      flashTimer.current = null;
-    }, 420);
+    // animationend removes the card after its final fade. This is a fallback
+    // for browsers that suspend animations in a background tab.
+    flashTimers.current.set(id, setTimeout(() => clearFlash(id), 1150));
   }
 
   function undoLast() {
     if (!undo) return;
-    clearFlash();
+    clearFlash(undo.id);
     const next = { ...choicesRef.current };
     if (undo.previous) next[undo.id] = undo.previous;
     else delete next[undo.id];
@@ -139,12 +143,12 @@ export default function DailyHuntPage() {
     const next = { ...choicesRef.current };
     delete next[id];
     updateChoices(next);
-    clearFlash();
+    clearFlash(id);
     if (undo?.id === id) setUndo(null);
   }
 
   function startSwipe(e: PointerEvent<HTMLElement>, id: string) {
-    if (folder !== "hunt" || !e.isPrimary || e.button !== 0 ||
+    if (folder !== "hunt" || flashTimers.current.has(id) || !e.isPrimary || e.button !== 0 ||
         (e.target as HTMLElement).closest("button, input, select, textarea")) return;
     gesture.current = { x: e.clientX, y: e.clientY, id, pointerId: e.pointerId, axis: null };
   }
@@ -271,7 +275,7 @@ setResults(resultData ?? []);
     .filter(item => platformFilter === "all" || item.platform === platformFilter)
     .filter(item => showAuctions || item.price_kind !== "auction")
     .filter(item => !todayOnly || (item.found_at && new Date(item.found_at).toDateString() === new Date().toDateString()))
-    .filter(item => !choices[item.id] || swipeFlash?.id === item.id);
+    .filter(item => !choices[item.id] || Boolean(swipeFlash[item.id]));
   const todayCount = listings.filter(item => item.found_at && new Date(item.found_at).toDateString() === new Date().toDateString()).length;
   const auctionCount = listings.filter(item => item.price_kind === "auction").length;
 
@@ -344,10 +348,13 @@ setResults(resultData ?? []);
               onPointerCancel={e => endSwipe(e, true)}
               onLostPointerCapture={e => { if (e.target === e.currentTarget) endSwipe(e, true); }}
               onDragStart={e => e.preventDefault()}
+              onAnimationEnd={e => {
+                if (e.target === e.currentTarget && swipeFlash[item.id]) clearFlash(item.id);
+              }}
               onClickCapture={e => {
                 if (e.timeStamp < suppressClickUntil.current) { e.preventDefault(); e.stopPropagation(); }
               }}
-              style={{ minWidth: 0, overflow: "hidden", borderRadius: 14, border: "1px solid #1c5666", background: "#102c36", position: "relative", touchAction: "pan-y pinch-zoom", transform: drag?.id === item.id ? `translateX(${Math.max(-110, Math.min(110, drag.x))}px) rotate(${Math.max(-6, Math.min(6, drag.x / 20))}deg)` : undefined, transition: drag?.id === item.id ? "none" : "transform 180ms ease-out" }}>
+              style={{ minWidth: 0, overflow: "hidden", borderRadius: 14, border: "1px solid #1c5666", background: "#102c36", position: "relative", animation: swipeFlash[item.id] ? "thCardLeave 1000ms linear both" : undefined, touchAction: "pan-y pinch-zoom", transform: drag?.id === item.id ? `translateX(${Math.max(-110, Math.min(110, drag.x))}px) rotate(${Math.max(-6, Math.min(6, drag.x / 20))}deg)` : undefined, transition: drag?.id === item.id ? "none" : "transform 180ms ease-out" }}>
               <a href={item.url} target="_blank" rel="noopener noreferrer" aria-label={`Bekijk ${item.title}`} style={{ display: "block", textDecoration: "none", color: "white" }}>
                 <div style={{ position: "relative", background: "#091b24", aspectRatio: "1 / 1" }}>
                   {item.image ? <img src={item.image} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <div style={{ height: "100%", display: "grid", placeItems: "center", color: "#91b6bf", fontSize: 12 }}>Geen foto</div>}
@@ -362,7 +369,12 @@ setResults(resultData ?? []);
                   <span style={{ display: "block", fontSize: 10, color: "#a9c5cc", marginTop: 3 }}>{item.price_kind === "auction" ? "Veiling" : item.price_kind === "bid" ? "Startbod" : item.price_kind === "fixed" ? "Vraagprijs" : ""}</span>
                 </div>
               </a>
-              {(swipeFlash?.id === item.id || (drag?.id === item.id && Math.abs(drag.x) > 10)) && <div aria-hidden="true" style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "#05191bd9", fontSize: 74, zIndex: 3, pointerEvents: "none", opacity: swipeFlash?.id === item.id ? undefined : Math.min(1, Math.abs(drag?.x ?? 0) / 80), animation: swipeFlash?.id === item.id ? "thSwipeFade 420ms ease-out forwards" : undefined }}>{(swipeFlash?.id === item.id ? swipeFlash.choice === "saved" : (drag?.x ?? 0) > 0) ? "❤️" : "👎"}</div>}
+              {(swipeFlash[item.id] || (drag?.id === item.id && Math.abs(drag.x) > 10)) && <div aria-hidden="true" className="th-swipe-feedback" style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", zIndex: 3, pointerEvents: "none" }}>
+                <span key={swipeFlash[item.id] ? "confirmed" : "dragging"} className="th-swipe-symbol" style={{ display: "block", fontSize: "clamp(96px, 25vw, 140px)", lineHeight: 1, filter: "drop-shadow(0 8px 22px #0008)", opacity: swipeFlash[item.id] ? undefined : Math.min(.85, Math.abs(drag?.x ?? 0) / 110), animation: swipeFlash[item.id] ? "thSwipeFloat 1000ms cubic-bezier(.22,.61,.36,1) both" : undefined }}>
+                  {(swipeFlash[item.id] ? swipeFlash[item.id] === "saved" : (drag?.x ?? 0) > 0) ? "❤️" : "👎"}
+                </span>
+              </div>}
+
               {folder === "hunt" ? <div style={{ display: "flex", gap: 8, padding: "8px 11px 0" }}>
                 <button type="button" onClick={() => decide(item.id, "dismissed")} style={pill(false)}>👎 Niet geïnteresseerd</button>
                 <button type="button" onClick={() => decide(item.id, "saved")} style={pill(false)}>❤️ Bewaren</button>
@@ -374,7 +386,32 @@ setResults(resultData ?? []);
           ))}
         </div>
       </section>
-      <style jsx>{`@keyframes thSwipeFade { from { opacity: 0; transform: scale(.7); } 30% { opacity: 1; transform: scale(1.1); } to { opacity: 0; transform: scale(1); } } @media (max-width: 767px) { .th-daily-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; } } @media (min-width: 768px) { .th-daily-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; } } .th-daily-grid { display: grid; }`}</style>
+      <style jsx>{`
+        @keyframes thSwipeFloat {
+          0% { opacity: 0; transform: translateY(18px) scale(.7); }
+          22% { opacity: 1; transform: translateY(0) scale(1); }
+          50% { opacity: 1; transform: translateY(-18px) scale(1.12); }
+          74% { opacity: .7; transform: translateY(-42px) scale(1.16); }
+          100% { opacity: 0; transform: translateY(-78px) scale(1.2); }
+        }
+        @keyframes thCardLeave {
+          0%, 86% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        .th-daily-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; width: 100%; }
+        .th-daily-grid > article { width: 100%; }
+        @media (min-width: 1024px) {
+          .th-daily-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .th-swipe-symbol { animation-name: thSwipeStill !important; }
+        }
+        @keyframes thSwipeStill {
+          0% { opacity: 0; }
+          22%, 60% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+      `}</style>
       {folder === "hunt" && <section style={cardStyle}>
         <h2 style={sectionTitleStyle}>Beoordeelde Hidden Gems</h2>
 
