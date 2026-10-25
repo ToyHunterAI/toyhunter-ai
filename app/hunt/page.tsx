@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "../../src/lib/supabase/client";
 
 type HuntProfile = {
@@ -70,6 +70,50 @@ export default function DailyHuntPage() {
   const [showAuctions, setShowAuctions] = useState(false);
   const [todayOnly, setTodayOnly] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [choices, setChoices] = useState<Record<string, "saved" | "dismissed">>({});
+  const [folder, setFolder] = useState<"hunt" | "saved" | "dismissed">("hunt");
+  const [showSwipeTip, setShowSwipeTip] = useState(false);
+  const [swipeFlash, setSwipeFlash] = useState<{ id: string; choice: "saved" | "dismissed" } | null>(null);
+  const [undo, setUndo] = useState<{ id: string; previous?: "saved" | "dismissed" } | null>(null);
+  const touchStart = useRef<{ x: number; y: number; id: string } | null>(null);
+  const preventClick = useRef(false);
+  const [storageKey, setStorageKey] = useState("");
+
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      const stored = JSON.parse(localStorage.getItem(storageKey) || "{}");
+      setChoices(stored && typeof stored === "object" && !Array.isArray(stored) ? stored : {});
+      setShowSwipeTip(localStorage.getItem(storageKey + ":tip") !== "seen");
+    } catch { setChoices({}); }
+  }, [storageKey]);
+
+  function decide(id: string, choice: "saved" | "dismissed") {
+    const previous = choices[id];
+    setSwipeFlash({ id, choice });
+    setUndo({ id, previous });
+    setShowSwipeTip(false);
+    if (storageKey) localStorage.setItem(storageKey + ":tip", "seen");
+    window.setTimeout(() => {
+      setChoices(current => {
+        const next = { ...current, [id]: choice };
+        if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next));
+        return next;
+      });
+      setSwipeFlash(current => current?.id === id ? null : current);
+    }, 380);
+  }
+
+  function undoLast() {
+    if (!undo) return;
+    const next = { ...choices };
+    if (undo.previous) next[undo.id] = undo.previous;
+    else delete next[undo.id];
+    setChoices(next);
+    if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next));
+    setUndo(null);
+  }
+
 
   useEffect(() => {
     async function loadDailyHunt() {
@@ -82,6 +126,7 @@ export default function DailyHuntPage() {
       }
 
       setEmail(user.email ?? null);
+      setStorageKey(`toyhunter:swipes:v1:${user.id}`);
       try {
         const response = await fetch("/api/hunt/listings", { cache: "no-store" });
         if (!response.ok) throw new Error("Advertenties konden niet worden opgehaald");
@@ -125,7 +170,8 @@ setResults(resultData ?? []);
   const visibleListings = (viewMode === "candidates" ? candidates : listings)
     .filter(item => platformFilter === "all" || item.platform === platformFilter)
     .filter(item => showAuctions || item.price_kind !== "auction")
-    .filter(item => !todayOnly || (item.found_at && new Date(item.found_at).toDateString() === new Date().toDateString()));
+    .filter(item => !todayOnly || (item.found_at && new Date(item.found_at).toDateString() === new Date().toDateString()))
+    .filter(item => folder === "hunt" ? !choices[item.id] : choices[item.id] === folder);
   const todayCount = listings.filter(item => item.found_at && new Date(item.found_at).toDateString() === new Date().toDateString()).length;
   const auctionCount = listings.filter(item => item.price_kind === "auction").length;
 
@@ -163,6 +209,13 @@ setResults(resultData ?? []);
         <p style={{ color: "#8ce5e7", fontSize: 12, letterSpacing: 2, fontWeight: 800, margin: 0 }}>TOYHUNTER DAILY</p>
         <h1 style={{ margin: "6px 0", fontSize: "clamp(27px, 6vw, 42px)" }}>Nieuwe vondsten</h1>
         <p style={{ color: "#9abcc4", margin: "0 0 14px", fontSize: 13 }}>{new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "long" }).format(new Date())} · {todayCount} vandaag · {listings.length} recent · {auctionCount} veilingen</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, alignItems: "center", marginBottom: 10 }}>
+          <button type="button" style={pill(folder === "hunt")} onClick={() => setFolder("hunt")}>🔎 Hunt</button>
+          <button type="button" style={pill(folder === "saved")} onClick={() => setFolder("saved")}>❤️ Bewaard ({Object.values(choices).filter(x => x === "saved").length})</button>
+          <button type="button" style={pill(folder === "dismissed")} onClick={() => setFolder("dismissed")}>👎 Niet interessant</button>
+          {undo && <button type="button" style={pill(false)} onClick={undoLast}>↩ Ongedaan maken</button>}
+        </div>
+        {folder === "hunt" && showSwipeTip && <div style={{ color: "#b9e7ed", background: "#123944", padding: "10px 12px", borderRadius: 10, fontSize: 13, marginBottom: 12 }}>SWIPE 👈 Niet geïnteresseerd · ❤️ Bewaren 👉</div>}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 7, alignItems: "center" }}>
           <button type="button" onClick={() => setViewMode("candidates")} aria-pressed={viewMode === "candidates"} style={pill(viewMode === "candidates")}>🔎 Kandidaten</button>
           <button type="button" onClick={() => setViewMode("all")} aria-pressed={viewMode === "all"} style={pill(viewMode === "all")}>Alles</button>
@@ -177,31 +230,45 @@ setResults(resultData ?? []);
       </section>
       <section style={{ maxWidth: 1100, margin: "0 auto" }}>
         {listingsError && <p role="alert">{listingsError}</p>}
-        {!listingsError && visibleListings.length === 0 && <p style={{ color: "#a9c5cc" }}>Geen advertenties met deze filters. Probeer ‘Alles’ of zet veilingen aan.</p>}
+        {!listingsError && visibleListings.length === 0 && <p style={{ color: "#a9c5cc" }}>Geen advertenties in dit overzicht. Je kunt de filters aanpassen of een andere map openen.</p>}
         <div className="th-daily-grid">
           {visibleListings.map(item => (
-            <article key={item.id} style={{ minWidth: 0, overflow: "hidden", borderRadius: 14, border: "1px solid #1c5666", background: "#102c36" }}>
-              <a href={item.url} target="_blank" rel="noopener noreferrer" aria-label={`Bekijk ${item.title}`} style={{ display: "block", textDecoration: "none", color: "white" }}>
+            <article key={item.id}
+              onTouchStart={e => { const t = e.touches[0]; touchStart.current = { x: t.clientX, y: t.clientY, id: item.id }; }}
+              onTouchEnd={e => {
+                const start = touchStart.current; touchStart.current = null;
+                if (!start || start.id !== item.id || folder !== "hunt") return;
+                const t = e.changedTouches[0]; const dx = t.clientX - start.x; const dy = t.clientY - start.y;
+                if (Math.abs(dx) > 65 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+                  preventClick.current = true;
+                  decide(item.id, dx > 0 ? "saved" : "dismissed");
+                  window.setTimeout(() => { preventClick.current = false; }, 500);
+                }
+              }}
+              style={{ minWidth: 0, overflow: "hidden", borderRadius: 14, border: "1px solid #1c5666", background: "#102c36", position: "relative", touchAction: "pan-y" }}>
+              <a href={item.url} onClick={e => { if (preventClick.current) e.preventDefault(); }} target="_blank" rel="noopener noreferrer" aria-label={`Bekijk ${item.title}`} style={{ display: "block", textDecoration: "none", color: "white" }}>
                 <div style={{ position: "relative", background: "#091b24", aspectRatio: "1 / 1" }}>
                   {item.image ? <img src={item.image} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <div style={{ height: "100%", display: "grid", placeItems: "center", color: "#91b6bf", fontSize: 12 }}>Geen foto</div>}
-                  <span title={item.price_notice} style={{ position: "absolute", top: 8, right: 8, background: "#061b24ed", borderRadius: 9, padding: "5px 8px", fontSize: 15 }}>
+                  {item.price_kind !== "unverified" && <span title={item.price_notice} style={{ position: "absolute", top: 8, right: 8, background: "#061b24ed", borderRadius: 9, padding: "5px 8px", fontSize: 15 }}>
                     {item.price_kind === "auction" ? "🔨" : item.price_kind === "bid" ? "🤝" : item.price_kind === "fixed" ? "🏷️" : "⚠️"}
-                  </span>
+                  </span>}
                 </div>
                 <div style={{ padding: "10px 11px 4px" }}>
                   <div style={{ fontSize: 10, color: "#8ce5e7", textTransform: "uppercase", letterSpacing: .5 }}>{item.platform}</div>
                   <h2 style={{ fontSize: 13, lineHeight: 1.3, margin: "5px 0 8px", fontWeight: 650, height: "2.6em", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere" }}>{item.title}</h2>
                   <strong style={{ fontSize: 18 }}>{item.price == null ? "Prijs onbekend" : (() => { try { return new Intl.NumberFormat("nl-NL", { style: "currency", currency: item.currency || "EUR", maximumFractionDigits: 2 }).format(item.price); } catch { return `${item.price} ${item.currency || "EUR"}`; } })()}</strong>
-                  <span style={{ display: "block", fontSize: 10, color: "#a9c5cc", marginTop: 3 }}>{item.price_kind === "auction" ? "Veiling" : item.price_kind === "bid" ? "Startbod" : item.price_kind === "fixed" ? "Vraagprijs" : "Prijs onbevestigd"}</span>
+                  <span style={{ display: "block", fontSize: 10, color: "#a9c5cc", marginTop: 3 }}>{item.price_kind === "auction" ? "Veiling" : item.price_kind === "bid" ? "Startbod" : item.price_kind === "fixed" ? "Vraagprijs" : ""}</span>
                 </div>
               </a>
+              {swipeFlash?.id === item.id && <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "#05191bd9", fontSize: 74, zIndex: 3, pointerEvents: "none", animation: "thSwipeFade 380ms ease-out forwards" }}>{swipeFlash.choice === "saved" ? "❤️" : "👎"}</div>}
+              {folder !== "hunt" && <button type="button" onClick={() => { const next = { ...choices }; delete next[item.id]; setChoices(next); if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next)); }} style={{ margin: "8px 11px 0", padding: "6px 9px", background: "#214c57", border: 0, borderRadius: 7, color: "white" }}>↩ Terug naar Hunt</button>}
               <button type="button" onClick={() => setExpandedId(expandedId === item.id ? null : item.id)} aria-expanded={expandedId === item.id} style={{ background: "none", border: 0, color: "#9bdce7", padding: "8px 11px 11px", fontSize: 11, cursor: "pointer", textAlign: "left" }}>{expandedId === item.id ? "Minder info ↑" : "Details ↓"}</button>
               {expandedId === item.id && <div style={{ padding: "0 11px 12px", color: "#b8d0d6", fontSize: 11, lineHeight: 1.5 }}><p style={{ margin: "0 0 6px" }}>{item.price_notice}</p>{candidateToyline(item.title) && <p style={{ margin: 0 }}>🔎 {candidateToyline(item.title)} · Nog niet op waarde beoordeeld</p>}</div>}
             </article>
           ))}
         </div>
       </section>
-      <style jsx>{`@media (max-width: 600px) { .th-daily-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; } } @media (min-width: 601px) { .th-daily-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; } } .th-daily-grid { display: grid; }`}</style>
+      <style jsx>{`@keyframes thSwipeFade { from { opacity: 0; transform: scale(.7); } 30% { opacity: 1; transform: scale(1.1); } to { opacity: 0; transform: scale(1); } } @media (max-width: 600px) { .th-daily-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; } } @media (min-width: 601px) { .th-daily-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; } } .th-daily-grid { display: grid; }`}</style>
       <section style={cardStyle}>
         <h2 style={sectionTitleStyle}>Beoordeelde Hidden Gems</h2>
 
