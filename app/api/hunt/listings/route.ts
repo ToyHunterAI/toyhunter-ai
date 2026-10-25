@@ -11,12 +11,18 @@ export async function GET() {
 
   const { data, error } = await supabaseAdmin
     .from("collector_population_listings")
-    .select("id,source_platform,title,listing_title,listing_url,price,currency,image_urls,found_at,created_at,shipping_price")
+    .select("id,source_platform,title,listing_title,listing_url,price,currency,image_urls,found_at,created_at,shipping_price,input_payload")
     .not("listing_url", "is", null)
     .order("created_at", { ascending: false })
     .limit(100);
   if (error) return NextResponse.json({ error: "Advertenties ophalen mislukt" }, { status: 500 });
-  const classify = (platform: string, url: string, title: string) => {
+  const classify = (platform: string, url: string, title: string, payload: unknown) => {
+    const p = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+    const seller = String(p.seller_name ?? "").trim().toLowerCase();
+    const priceType = String(p.price_type ?? "").trim().toUpperCase();
+    if (seller === "catawiki") return { price_kind: "auction", price_notice: "Catawiki-veiling: dit is geen vaste koopprijs." };
+    if (priceType === "MIN_BID" || priceType === "BID") return { price_kind: "bid", price_notice: "Startbod: dit is geen vaste koopprijs." };
+    if (priceType === "FIXED") return { price_kind: "fixed", price_notice: "Vaste vraagprijs volgens Marktplaats (nog geen bewezen koopje)." };
     const combined = `${title} ${url}`;
     let host = "";
     try { host = new URL(url).hostname; } catch { /* malformed URL */ }
@@ -32,7 +38,7 @@ export async function GET() {
     return { price_kind: "unverified", price_notice: "Vaste koopprijs niet geverifieerd. Nog niet beoordeeld." };
   };
   return NextResponse.json({ listings: (data ?? []).map(item => ({
-    ...classify(String(item.source_platform ?? ""), String(item.listing_url ?? ""), String(item.listing_title || item.title || "")),
+    ...classify(String(item.source_platform ?? ""), String(item.listing_url ?? ""), String(item.listing_title || item.title || ""), item.input_payload),
     id: item.id, platform: item.source_platform,
     title: item.listing_title || item.title || "Zonder titel",
     url: item.listing_url, price: item.price, currency: item.currency || "EUR",

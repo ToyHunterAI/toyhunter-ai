@@ -227,7 +227,7 @@ setResults(resultData ?? []);
                 {candidateToyline(item.title) && <div style={{ marginTop: 6, color: "#ffca61", fontSize: 12 }}>🔎 {candidateToyline(item.title)} · Nog te beoordelen</div>}
                 <h3 style={{ fontSize: 16, lineHeight: 1.4, margin: "8px 0", overflowWrap: "anywhere" }}>{item.title}</h3>
                 <div style={{ margin: "8px 0", fontSize: 12, fontWeight: 700, color: item.price_kind === "auction" || item.price_kind === "bid" ? "#ffd184" : "#9adce7" }}>
-                  {item.price_kind === "auction" ? "🔨 Veiling" : item.price_kind === "bid" ? "🔨 Bieden" : "⚠️ Prijs niet geverifieerd"}
+                  {item.price_kind === "auction" ? "🔨 Veiling" : item.price_kind === "bid" ? "🔨 Startbod" : item.price_kind === "fixed" ? "🏷️ Vaste vraagprijs" : "⚠️ Prijs niet geverifieerd"}
                 </div>
                 <strong style={{ fontSize: 20 }}>{item.price == null ? "Prijs onbekend" : (() => { try { return new Intl.NumberFormat("nl-NL", { style: "currency", currency: item.currency || "EUR" }).format(item.price); } catch { return `${item.price} ${item.currency || "EUR"}`; } })()}</strong>
                 <p style={{ fontSize: 12, color: "#a9c5cc", margin: "7px 0 0", lineHeight: 1.45 }}>{item.price_notice || "Prijssoort nog niet gecontroleerd."}</p>

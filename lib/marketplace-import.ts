@@ -6,6 +6,7 @@ export type ImportedListing = {
   condition: string | null; seller_location: string | null;
   shipping_to_nl: null; shipping_notice: string; photo_urls: string[];
   query: string | null; first_seen_at: string; rights_profile: "evaluation_only";
+  price_type?: string | null; seller_name?: string | null;
 };
 const notice = "Let op: Het is niet bevestigd dat dit artikel naar Nederland verzonden kan worden. Neem contact op met de verkoper.";
 const str = (v: unknown): string | null =>
@@ -70,6 +71,8 @@ export function normalizeMarketplace(raw: unknown, platform: Marketplace, now: s
     shipping_to_nl: null, shipping_notice: notice, photo_urls: images,
     query: first(x.search_term, x.searchQuery, x.search_query), first_seen_at: now,
     rights_profile: "evaluation_only",
+    price_type: platform === "marktplaats" ? first(x.priceInfo_priceType) : null,
+    seller_name: platform === "marktplaats" ? first(x.sellerInformation_sellerName) : null,
   };
 }
 export function normalizeMarketplaceDataset(items: unknown[], platform: Marketplace, now = new Date().toISOString()) {
