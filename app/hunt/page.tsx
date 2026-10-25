@@ -37,6 +37,24 @@ type MarketplaceListing = {
   shipping: number | null; found_at: string | null;
 };
 
+// Voorselectie op herkenbare vintage speelgoedlijnen; dit is GEEN waardebepaling.
+const TOY_TARGETS: { name: string; pattern: RegExp }[] = [
+  { name: "Masters of the Universe", pattern: /\b(?:motu|masters of the universe|he[ -]?man|skeletor|grayskull)\b/i },
+  { name: "Transformers", pattern: /\b(?:transformers?|optimus prime|megatron|autobot|decepticon)\b/i },
+  { name: "ThunderCats", pattern: /\b(?:thunder\s?cats?|lion[ -]?o|mumm[ -]?ra)\b/i },
+  { name: "Dino Riders", pattern: /\b(?:dino[ -]?riders?)\b/i },
+  { name: "M.A.S.K.", pattern: /\b(?:m\.?a\.?s\.?k\.?|matt trakker|venom mask)\b/i },
+  { name: "G.I. Joe / Action Force", pattern: /\b(?:g\.?i\.?\s?joe|action force|cobra commander)\b/i },
+  { name: "SilverHawks", pattern: /\b(?:silverhawks?)\b/i },
+  { name: "BraveStarr", pattern: /\b(?:bravestarr)\b/i },
+  { name: "Bionic Six", pattern: /\b(?:bionic six|bionic 6)\b/i },
+];
+const EXCLUDED = /\b(?:lego|funko|pop!|funko pop)\b/i;
+function candidateToyline(title: string): string | null {
+  if (EXCLUDED.test(title)) return null;
+  return TOY_TARGETS.find(target => target.pattern.test(title))?.name ?? null;
+}
+
 export default function DailyHuntPage() {
   const supabase = createClient();
 
@@ -47,6 +65,7 @@ export default function DailyHuntPage() {
   const [listings, setListings] = useState<MarketplaceListing[]>([]);
   const [listingsError, setListingsError] = useState("");
   const [platformFilter, setPlatformFilter] = useState("all");
+  const [viewMode, setViewMode] = useState<"candidates" | "all">("candidates");
 
   useEffect(() => {
     async function loadDailyHunt() {
@@ -97,6 +116,10 @@ setResults(resultData ?? []);
 
     loadDailyHunt();
   }, [supabase]);
+
+  const candidates = listings.filter(item => candidateToyline(item.title) !== null);
+  const visibleListings = (viewMode === "candidates" ? candidates : listings)
+    .filter(item => platformFilter === "all" || item.platform === platformFilter);
 
   if (loading) {
     return (
@@ -173,8 +196,14 @@ setResults(resultData ?? []);
       </section>
 
       <section style={cardStyle}>
-        <h2 style={sectionTitleStyle}>Nieuwe advertenties ({listings.length})</h2>
-        <p style={textStyle}>Echte advertenties — nog niet beoordeeld als Hidden Gem.</p>
+        <h2 style={sectionTitleStyle}>Hidden Gem-kandidaten ({candidates.length})</h2>
+        <p style={textStyle}>Automatisch herkende speelgoedlijnen. Nog geen prijsvergelijking of bevestigde koopjes.</p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "12px 0" }}>
+          <button type="button" onClick={() => setViewMode("candidates")} aria-pressed={viewMode === "candidates"}
+            style={{ ...secondaryButtonStyle, background: viewMode === "candidates" ? "#12667b" : "#102b35", cursor: "pointer" }}>Kandidaten ({candidates.length})</button>
+          <button type="button" onClick={() => setViewMode("all")} aria-pressed={viewMode === "all"}
+            style={{ ...secondaryButtonStyle, background: viewMode === "all" ? "#12667b" : "#102b35", cursor: "pointer" }}>Alle advertenties ({listings.length})</button>
+        </div>
         <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "10px 0 18px" }}>
           {["all", ...Array.from(new Set(listings.map(x => x.platform)))].map(platform => (
             <button key={platform} onClick={() => setPlatformFilter(platform)}
@@ -185,14 +214,16 @@ setResults(resultData ?? []);
         </div>
         {listingsError && <p role="alert">{listingsError}</p>}
         {!listingsError && listings.length === 0 && <p style={textStyle}>Nog geen advertenties beschikbaar.</p>}
+        {viewMode === "candidates" && candidates.length === 0 && !listingsError && <p style={textStyle}>Geen herkenbare kandidaten in de laatste advertenties. Kies ‘Alle advertenties’ om alles te bekijken.</p>}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 230px), 1fr))", gap: 14 }}>
-          {listings.filter(x => platformFilter === "all" || x.platform === platformFilter).map(item => (
+          {visibleListings.map(item => (
             <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer"
               style={{ display: "block", overflow: "hidden", borderRadius: 15, border: "1px solid #1c5666", background: "#102c36", textDecoration: "none", color: "white" }}>
               {item.image ? <img src={item.image} alt="" loading="lazy" style={{ width: "100%", height: 190, objectFit: "contain", background: "#091b24" }} />
                 : <div style={{ height: 100, display: "grid", placeItems: "center", color: "#91b6bf" }}>Geen foto</div>}
               <div style={{ padding: 14 }}>
                 <div style={{ color: "#8ce5e7", fontSize: 12, textTransform: "uppercase" }}>{item.platform}</div>
+                {candidateToyline(item.title) && <div style={{ marginTop: 6, color: "#ffca61", fontSize: 12 }}>🔎 {candidateToyline(item.title)} · Nog te beoordelen</div>}
                 <h3 style={{ fontSize: 16, lineHeight: 1.4, margin: "8px 0", overflowWrap: "anywhere" }}>{item.title}</h3>
                 <strong style={{ fontSize: 20 }}>{item.price == null ? "Prijs onbekend" : new Intl.NumberFormat("nl-NL", { style: "currency", currency: item.currency || "EUR" }).format(item.price)}</strong>
                 <div style={{ marginTop: 10, color: "#a6dbe4", fontSize: 13 }}>Bekijk advertentie ↗</div>
