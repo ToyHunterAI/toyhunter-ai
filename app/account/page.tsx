@@ -18,7 +18,7 @@ export default function AccountPage() {
   }, [supabase]);
 
   return (
-    <main style={pageStyle}>
+    <main className="th-page th-account" style={pageStyle}>
       <section style={headerStyle}>
         <p style={eyebrowStyle}>ToyHunter AI</p>
         <h1 style={titleStyle}>My Account</h1>
@@ -29,7 +29,7 @@ export default function AccountPage() {
         </div>
       </section>
 
-      <section style={gridStyle}>
+      <section className="th-content-grid" style={gridStyle}>
         <Link href="/hunt-setup" style={cardStyle}>
           <span style={cardLabelStyle}>Profile</span>
           <strong style={cardTitleStyle}>My Hunt Settings</strong>
@@ -38,11 +38,11 @@ export default function AccountPage() {
           </span>
         </Link>
 
-        <Link href="/logout" style={dangerCardStyle}>
+        <Link href={email ? "/logout" : "/login"} style={dangerCardStyle}>
           <span style={cardLabelStyle}>Session</span>
-          <strong style={cardTitleStyle}>Logout</strong>
+          <strong style={cardTitleStyle}>{email ? "Logout" : "Login"}</strong>
           <span style={cardTextStyle}>
-            Sign out of ToyHunter AI.
+            {email ? "Sign out of ToyHunter AI." : "Sign in to ToyHunter AI."}
           </span>
         </Link>
       </section>

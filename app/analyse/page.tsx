@@ -117,7 +117,7 @@ export default function AnalysePage() {
   );
 
   return (
-    <main style={pageStyle}>
+    <main className="th-page th-analyse" style={pageStyle}>
       <section style={headerStyle}>
         <p style={eyebrowStyle}>Analyse Assistant</p>
 
@@ -132,7 +132,7 @@ export default function AnalysePage() {
         </p>
       </section>
 
-      <section style={machineStyle}>
+      <section className="th-content-grid" style={machineStyle}>
         <div style={uploadPanelStyle}>
           <h2 style={uploadTitleStyle}>Upload Target</h2>
 

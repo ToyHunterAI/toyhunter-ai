@@ -26,7 +26,7 @@ export default function SellPage() {
   }
 
   return (
-    <main style={pageStyle}>
+    <main className="th-page th-sell" style={pageStyle}>
       <section style={headerStyle}>
         <p style={eyebrowStyle}>ToyHunter AI</p>
 
@@ -40,7 +40,7 @@ export default function SellPage() {
         </p>
       </section>
 
-      <section style={gridStyle}>
+      <section className="th-content-grid" style={gridStyle}>
         <div style={uploadPanelStyle}>
           <h2 style={panelTitleOrangeStyle}>Upload Toy</h2>
 

@@ -38,7 +38,7 @@ const events = [
 
 export default function EventsPage() {
   return (
-    <main style={pageStyle}>
+    <main className="th-page th-events" style={pageStyle}>
       <section style={headerStyle}>
         <p style={eyebrowStyle}>ToyHunter AI</p>
 
@@ -59,7 +59,7 @@ export default function EventsPage() {
         <button style={filterStyle}>All Events</button>
       </section>
 
-      <section style={gridStyle}>
+      <section className="th-content-grid" style={gridStyle}>
         {events.map((event) => (
           <article key={event.title} style={eventCardStyle}>
             <p style={eventTypeStyle}>{event.type}</p>

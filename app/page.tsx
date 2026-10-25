@@ -3,12 +3,12 @@ import type React from "react";
 
 export default function HomePage() {
   return (
-    <main style={{ padding: "70px 40px" }}>
-      <section style={heroStyle}>
+    <main className="th-home" style={{ padding: "70px 40px" }}>
+      <section className="th-hero" style={heroStyle}>
         <div>
           <p style={eyebrowStyle}>AI Powered. Treasure Detected.</p>
 
-          <h1 style={titleStyle}>
+          <h1 className="th-hero-title" style={titleStyle}>
             Find Hidden
             <br />
             Treasure.
@@ -19,7 +19,7 @@ export default function HomePage() {
             scan marketplaces daily for new opportunities.
           </p>
 
-          <div style={{ display: "flex", gap: "16px", marginTop: "34px" }}>
+          <div className="th-hero-actions" style={{ display: "flex", gap: "16px", marginTop: "34px" }}>
             <Link href="/analyse" style={primaryButton}>
               Start Scanning
             </Link>
@@ -30,7 +30,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div style={radarWrapperStyle}>
+        <div className="th-hero-radar" style={radarWrapperStyle}>
           <div style={radarStyle}>
             <div style={ringOneStyle} />
             <div style={ringTwoStyle} />
@@ -50,7 +50,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section style={featuresSectionStyle}>
+      <section className="th-features" style={featuresSectionStyle}>
         <FeatureCard
           color="#fb7185"
           title="AI Detection"
@@ -84,10 +84,10 @@ export default function HomePage() {
         </FeatureCard>
       </section>
 
-      <section style={howItWorksSectionStyle}>
+      <section className="th-how" style={howItWorksSectionStyle}>
         <h2 style={howItWorksTitleStyle}>How ToyHunter Works</h2>
 
-        <div style={howItWorksGridStyle}>
+        <div className="th-steps" style={howItWorksGridStyle}>
           <div style={stepCardStyle}>
             <div style={stepNumberStyle}>1</div>
             <h3 style={stepTitleStyle}>Set Your Hunt Profile</h3>

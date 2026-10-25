@@ -11,5 +11,6 @@ export async function GET(request: Request) {
     await supabase.auth.exchangeCodeForSession(code);
   }
 
-  return NextResponse.redirect(new URL(next, requestUrl.origin));
+  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/hunt-setup";
+  return new NextResponse(null, { status: 303, headers: { Location: safeNext } });
 }

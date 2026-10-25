@@ -3,166 +3,46 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+const tabs = [
+  { href: "/", label: "Home", icon: "⌂" },
+  { href: "/hunt", label: "Hunt", icon: "◎" },
+  { href: "/analyse", label: "Analyse", icon: "◇" },
+  { href: "/sell", label: "Sell", icon: "↗" },
+  { href: "/account", label: "Account", icon: "♙" },
+];
+
 export default function Navbar() {
   const pathname = usePathname();
-
+  const active = (href: string) => href === "/" ? pathname === "/" : pathname.startsWith(href);
   return (
-    <header style={headerStyle}>
-      <nav style={navStyle}>
-        <Link href="/" style={{ textDecoration: "none" }}>
-          <div style={brandStyle}>
-            <div style={logoRadarStyle}>
-              <div style={logoOuterRingStyle} />
-              <div style={logoMiddleRingStyle} />
-              <div style={logoInnerRingStyle} />
-              <div style={logoHorizontalLineStyle} />
-              <div style={logoVerticalLineStyle} />
-              <span style={logoTextStyle}>TH</span>
-            </div>
-
-            <span style={brandTextStyle}>ToyHunter AI</span>
+    <>
+      <header className="th-header">
+        <nav className="th-header-inner">
+          <Link href="/" className="th-brand" aria-label="ToyHunter AI home">
+            <span className="th-logo" aria-hidden="true">TH</span>
+            <span>ToyHunter <span className="th-brand-ai">AI</span></span>
+          </Link>
+          <div className="th-desktop-links">
+            {[
+              { href: "/", label: "Home" },
+              { href: "/hunt", label: "Daily Hunt" },
+              { href: "/analyse", label: "Analyse" },
+              { href: "/sell", label: "Sell" },
+              { href: "/events", label: "Events" },
+              { href: "/account", label: "My Account" },
+            ].map(tab => <Link key={tab.href} href={tab.href} className={active(tab.href) ? "th-nav-active" : ""}>{tab.label}</Link>)}
           </div>
-        </Link>
-
-        <div style={linksStyle}>
-          <Link href="/" style={getLinkStyle(pathname === "/")}>
-            Home
+          <Link href="/events" className="th-mobile-events">Events</Link>
+        </nav>
+      </header>
+      <nav className="th-bottom-nav" aria-label="Hoofdnavigatie">
+        {tabs.map(tab => (
+          <Link key={tab.href} href={tab.href} className={`th-bottom-tab ${active(tab.href) ? "is-active" : ""}`} aria-current={active(tab.href) ? "page" : undefined}>
+            <span className="th-bottom-icon" aria-hidden="true">{tab.icon}</span>
+            <span>{tab.label}</span>
           </Link>
-
-          <Link href="/hunt" style={getLinkStyle(pathname === "/hunt")}>
-            Daily Hunt
-          </Link>
-
-          <Link href="/analyse" style={getLinkStyle(pathname === "/analyse")}>
-            Analyse
-          </Link>
-
-          <Link href="/sell" style={getLinkStyle(pathname === "/sell")}>
-            Sell
-          </Link>
-
-          <Link href="/events" style={getLinkStyle(pathname === "/events")}>
-            Events
-          </Link>
-
-          <Link href="/account" style={accountButtonStyle}>
-            My Account
-          </Link>
-        </div>
+        ))}
       </nav>
-    </header>
+    </>
   );
 }
-
-function getLinkStyle(active: boolean) {
-  return {
-    textDecoration: "none",
-    color: active ? "#f59e0b" : "#cbd5e1",
-    fontSize: "16px",
-    fontWeight: active ? "700" : "500",
-  };
-}
-
-const headerStyle = {
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
-  padding: "18px 40px",
-  backgroundColor: "#0f172a",
-  position: "sticky" as const,
-  top: 0,
-  zIndex: 1000,
-};
-
-const navStyle = {
-  maxWidth: "1100px",
-  margin: "0 auto",
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-};
-
-const brandStyle = {
-  display: "flex",
-  alignItems: "center",
-  gap: "14px",
-};
-
-const brandTextStyle = {
-  color: "white",
-  fontSize: "22px",
-  fontWeight: "800",
-  letterSpacing: "0.5px",
-};
-
-const linksStyle = {
-  display: "flex",
-  gap: "24px",
-  alignItems: "center",
-};
-
-const accountButtonStyle = {
-  textDecoration: "none",
-  color: "#facc15",
-  fontWeight: "800",
-  border: "1px solid rgba(250,204,21,0.4)",
-  padding: "8px 14px",
-  borderRadius: "10px",
-};
-
-const logoRadarStyle = {
-  position: "relative" as const,
-  width: "46px",
-  height: "46px",
-  borderRadius: "50%",
-  boxShadow: "0 0 22px rgba(34,211,238,0.45)",
-};
-
-const logoOuterRingStyle = {
-  position: "absolute" as const,
-  inset: "0",
-  border: "2px solid rgba(34,211,238,0.95)",
-  borderRadius: "50%",
-};
-
-const logoMiddleRingStyle = {
-  position: "absolute" as const,
-  inset: "7px",
-  border: "1px solid rgba(34,211,238,0.65)",
-  borderRadius: "50%",
-};
-
-const logoInnerRingStyle = {
-  position: "absolute" as const,
-  inset: "14px",
-  border: "1px solid rgba(34,211,238,0.45)",
-  borderRadius: "50%",
-};
-
-const logoHorizontalLineStyle = {
-  position: "absolute" as const,
-  left: "4px",
-  right: "4px",
-  top: "50%",
-  height: "1px",
-  backgroundColor: "rgba(34,211,238,0.45)",
-};
-
-const logoVerticalLineStyle = {
-  position: "absolute" as const,
-  top: "4px",
-  bottom: "4px",
-  left: "50%",
-  width: "1px",
-  backgroundColor: "rgba(34,211,238,0.45)",
-};
-
-const logoTextStyle = {
-  position: "absolute" as const,
-  left: "50%",
-  top: "50%",
-  transform: "translate(-50%, -50%)",
-  color: "#ffffff",
-  fontSize: "10px",
-  fontWeight: "900",
-  letterSpacing: "0.5px",
-  textShadow: "0 0 8px rgba(34,211,238,0.9)",
-};

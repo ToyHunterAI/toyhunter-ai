@@ -31,6 +31,12 @@ type HuntResult = {
   found_at: string;
 };
 
+type MarketplaceListing = {
+  id: string; platform: string; title: string; url: string;
+  price: number | null; currency: string; image: string | null;
+  shipping: number | null; found_at: string | null;
+};
+
 export default function DailyHuntPage() {
   const supabase = createClient();
 
@@ -38,6 +44,9 @@ export default function DailyHuntPage() {
   const [profile, setProfile] = useState<HuntProfile | null>(null);
   const [results, setResults] = useState<HuntResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [listings, setListings] = useState<MarketplaceListing[]>([]);
+  const [listingsError, setListingsError] = useState("");
+  const [platformFilter, setPlatformFilter] = useState("all");
 
   useEffect(() => {
     async function loadDailyHunt() {
@@ -50,6 +59,14 @@ export default function DailyHuntPage() {
       }
 
       setEmail(user.email ?? null);
+      try {
+        const response = await fetch("/api/hunt/listings", { cache: "no-store" });
+        if (!response.ok) throw new Error("Advertenties konden niet worden opgehaald");
+        const payload = await response.json();
+        setListings(payload.listings ?? []);
+      } catch {
+        setListingsError("Advertenties ophalen mislukt. Probeer de pagina opnieuw.");
+      }
 
       const { data: profileData } = await supabase
         .from("hunt_profiles")
@@ -61,17 +78,16 @@ export default function DailyHuntPage() {
       setProfile(profileData);
 
       if (profileData) {
-        const { data: resultData } = await supabase
+        const { data: resultData, error: resultError } = await supabase
           .from("hunt_results")
           .select("*")
           .eq("user_id", user.id)
           .order("found_at", { ascending: false })
-          .limit(30);
+          .limit(200);
 
-        console.log("Logged in user:", user.id);
-console.log("Results:", resultData);
-console.log("USER ID:", user.id);
+        console.log("USER:", user.id);
 console.log("RESULTS:", resultData);
+console.log("ERROR:", resultError);
 
 setResults(resultData ?? []);
       }
@@ -84,7 +100,7 @@ setResults(resultData ?? []);
 
   if (loading) {
     return (
-      <main style={pageStyle}>
+      <main className="th-page th-hunt" style={pageStyle}>
         <section style={cardStyle}>
           <h1 style={titleStyle}>Daily Hunt</h1>
           <p style={textStyle}>Loading your hunt...</p>
@@ -95,7 +111,7 @@ setResults(resultData ?? []);
 
   if (!email) {
     return (
-      <main style={pageStyle}>
+      <main className="th-page th-hunt" style={pageStyle}>
         <section style={cardStyle}>
           <p style={eyebrowStyle}>ToyHunter AI</p>
           <h1 style={titleStyle}>Daily Hunt</h1>
@@ -110,31 +126,13 @@ setResults(resultData ?? []);
     );
   }
 
-  if (!profile) {
-    return (
-      <main style={pageStyle}>
-        <section style={cardStyle}>
-          <p style={eyebrowStyle}>ToyHunter AI</p>
-          <h1 style={titleStyle}>Daily Hunt</h1>
-          <p style={textStyle}>
-            You do not have an active Hunt Profile yet. Create your settings first,
-            then ToyHunter can start finding daily hidden gems.
-          </p>
-          <Link href="/hunt-setup" style={primaryButtonStyle}>
-            Create Hunt Profile
-          </Link>
-        </section>
-      </main>
-    );
-  }
-
   return (
-    <main style={pageStyle}>
+    <main className="th-page th-hunt" style={pageStyle}>
       <section style={headerStyle}>
         <p style={eyebrowStyle}>ToyHunter AI</p>
         <h1 style={titleStyle}>Daily Hunt</h1>
         <p style={subtitleStyle}>
-          Your daily hidden gem dashboard based on your saved Hunt Profile.
+          Echte speelgoedadvertenties uit onze database. Waardebepaling volgt later.
         </p>
 
         <div style={profileBoxStyle}>
@@ -145,26 +143,26 @@ setResults(resultData ?? []);
 
           <div>
             <span style={smallLabelStyle}>Active profile</span>
-            <strong>{profile.toy_categories.length} toy targets</strong>
+            <strong>{profile?.toy_categories?.length ?? 0} toy targets</strong>
           </div>
 
           <div>
             <span style={smallLabelStyle}>Platforms</span>
-            <strong>{profile.platforms.join(", ")}</strong>
+            <strong>{profile?.platforms?.join(", ") || "Nog niet ingesteld"}</strong>
           </div>
 
           <div>
             <span style={smallLabelStyle}>Budget</span>
-            <strong>€{profile.max_budget ?? 0}</strong>
+            <strong>€{profile?.max_budget ?? 0}</strong>
           </div>
 
           <div>
             <span style={smallLabelStyle}>Minimum profit</span>
-            <strong>€{profile.minimum_profit ?? 0}</strong>
+            <strong>€{profile?.minimum_profit ?? 0}</strong>
           </div>
         </div>
 
-        <div style={buttonRowStyle}>
+        <div className="th-actions" style={buttonRowStyle}>
           <Link href="/hunt-setup" style={secondaryButtonStyle}>
             Edit Hunt Settings
           </Link>
@@ -175,24 +173,46 @@ setResults(resultData ?? []);
       </section>
 
       <section style={cardStyle}>
-        <h2 style={sectionTitleStyle}>Today's Hidden Gems</h2>
+        <h2 style={sectionTitleStyle}>Nieuwe advertenties ({listings.length})</h2>
+        <p style={textStyle}>Echte advertenties — nog niet beoordeeld als Hidden Gem.</p>
+        <div style={{ display: "flex", gap: 8, overflowX: "auto", padding: "10px 0 18px" }}>
+          {["all", ...Array.from(new Set(listings.map(x => x.platform)))].map(platform => (
+            <button key={platform} onClick={() => setPlatformFilter(platform)}
+              style={{ border: "1px solid #247e91", background: platformFilter === platform ? "#12667b" : "#102b35", color: "white", borderRadius: 20, padding: "9px 13px", whiteSpace: "nowrap", cursor: "pointer" }}>
+              {platform === "all" ? "Alles" : platform}
+            </button>
+          ))}
+        </div>
+        {listingsError && <p role="alert">{listingsError}</p>}
+        {!listingsError && listings.length === 0 && <p style={textStyle}>Nog geen advertenties beschikbaar.</p>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 230px), 1fr))", gap: 14 }}>
+          {listings.filter(x => platformFilter === "all" || x.platform === platformFilter).map(item => (
+            <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer"
+              style={{ display: "block", overflow: "hidden", borderRadius: 15, border: "1px solid #1c5666", background: "#102c36", textDecoration: "none", color: "white" }}>
+              {item.image ? <img src={item.image} alt="" loading="lazy" style={{ width: "100%", height: 190, objectFit: "contain", background: "#091b24" }} />
+                : <div style={{ height: 100, display: "grid", placeItems: "center", color: "#91b6bf" }}>Geen foto</div>}
+              <div style={{ padding: 14 }}>
+                <div style={{ color: "#8ce5e7", fontSize: 12, textTransform: "uppercase" }}>{item.platform}</div>
+                <h3 style={{ fontSize: 16, lineHeight: 1.4, margin: "8px 0", overflowWrap: "anywhere" }}>{item.title}</h3>
+                <strong style={{ fontSize: 20 }}>{item.price == null ? "Prijs onbekend" : new Intl.NumberFormat("nl-NL", { style: "currency", currency: item.currency || "EUR" }).format(item.price)}</strong>
+                <div style={{ marginTop: 10, color: "#a6dbe4", fontSize: 13 }}>Bekijk advertentie ↗</div>
+              </div>
+            </a>
+          ))}
+        </div>
+      </section>
+      <section style={cardStyle}>
+        <h2 style={sectionTitleStyle}>Beoordeelde Hidden Gems</h2>
 
         {results.length === 0 ? (
           <div style={emptyStateStyle}>
             <h3 style={emptyTitleStyle}>No daily results yet</h3>
             <p style={textStyle}>
-              Your Hunt Profile is ready, but the automatic Daily Hunt job has not
-              filled this page yet. The next step is connecting this dashboard to
-              the eBay search engine and scheduled job.
+              Er zijn nog geen advertenties met een berekende Hidden Gem-score.
+              De geïmporteerde advertenties staan hierboven.
             </p>
 
-            <div style={previewBoxStyle}>
-              <strong>Next build step:</strong>
-              <span>Daily Hunt Engine reads your Hunt Profile</span>
-              <span>Runs saved searches automatically</span>
-              <span>Saves best finds into hunt_results</span>
-              <span>Shows Jackpot, Interesting and Watchlist results here</span>
-            </div>
+
           </div>
         ) : (
           <div style={resultsGridStyle}>

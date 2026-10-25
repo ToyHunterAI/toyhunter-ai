@@ -88,7 +88,16 @@ const manufacturers = [
   "Tomy",
 ];
 
-const platforms = ["Catawiki", "eBay", "Facebook Marketplace", "Marktplaats", "Vinted"];
+const platforms = [
+  "eBay.com (Worldwide)",
+  "eBay.nl",
+  "eBay.de",
+  "eBay.co.uk",
+  "Marktplaats",
+  "Vinted",
+  "Catawiki",
+  "Facebook Marketplace",
+];
 
 export default function HuntSetupPage() {
   const supabase = createClient();
@@ -223,7 +232,7 @@ export default function HuntSetupPage() {
   }
 
   return (
-    <main style={pageStyle}>
+    <main className="th-page th-hunt-setup" style={pageStyle}>
       <section style={headerStyle}>
         <p style={eyebrowStyle}>ToyHunter AI</p>
         <h1 style={titleStyle}>Hunt Setup</h1>

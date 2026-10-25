@@ -1,0 +1,8 @@
+[
+  {"platform":"marktplaats","actor":"azzouzana/marktplaats-nl-scraper","input":{"startUrl":"https://www.marktplaats.nl/q/masters+of+the+universe/","maxItems":10}},
+  {"platform":"2dehands","actor":"lowlanddata/tweedehands-scraper","input":{"searchQuery":"Masters of the Universe","domain":"2dehands.be","maxItems":5,"scrapeDetails":false,"delivery":"any","buyItNowOnly":false,"sortBy":"date","onlyNewListings":false,"resetState":false,"proxyConfiguration":{"useApifyProxy":true},"reportFailures":true}},
+  {"platform":"etsy","actor":"yumitori/etsy-search-scraper","input":{"searchTerms":["vintage Masters of the Universe action figure"],"maxResultsPerTerm":5,"includeImages":true,"includeDescription":false,"sortOn":"score","sortOrder":"down","sortResultsBy":"","taxonomyId":"","shopLocation":"","whoMade":"any","raw":false}},
+  {"platform":"facebook","actor":"apify/facebook-marketplace-scraper","input":{"startUrls":[{"url":"https://www.facebook.com/marketplace/amsterdam/search/?query=masters%20of%20the%20universe"}],"resultsLimit":5,"includeListingDetails":false}},
+  {"platform":"kleinanzeigen","actor":"beatanalytics/kleinanzeigen-scraper","input":{"searchKeywords":["Masters of the Universe"],"maxResultsPerSearch":5,"shippable":true,"searchRadius":"0","sort":"recommended","buyNowOnly":false,"pictureRequired":false}},
+  {"platform":"leboncoin","actor":"clearpath/leboncoin-api","input":{"searchQuery":"Masters of the Universe","adLimit":10,"includeSeller":false,"includePhone":false,"category":"0","radius":5,"sortBy":"relevance","search_in_title_only":false,"seller_type":"all","urgent":false,"donation":false,"shippable":true,"mode":"standard","telegramNotificationLimit":10,"webhookNotificationLimit":100}}
+]

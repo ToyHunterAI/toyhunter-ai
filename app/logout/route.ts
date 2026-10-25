@@ -5,5 +5,5 @@ export async function GET(request: Request) {
   const supabase = await createClient();
   await supabase.auth.signOut();
 
-  return NextResponse.redirect(new URL("/login", request.url));
+  return new NextResponse(null, { status: 303, headers: { Location: "/login" } });
 }
