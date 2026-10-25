@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { createPortal, flushSync } from "react-dom";
+import { useEffect, useEffectEvent, useRef, useState, type PointerEvent } from "react";
 import { createClient } from "../../src/lib/supabase/client";
 
 type HuntProfile = {
@@ -76,6 +77,8 @@ export default function DailyHuntPage() {
   const [folder, setFolder] = useState<"hunt" | "finds">("hunt");
   const [findsTab, setFindsTab] = useState<Choice>("saved");
   const [showSwipeTip, setShowSwipeTip] = useState(false);
+  const [tipClosing, setTipClosing] = useState(false);
+  const gridRef = useRef<HTMLDivElement | null>(null);
   const [swipeFlash, setSwipeFlash] = useState<Record<string, Choice>>({});
   const [undo, setUndo] = useState<{ id: string; previous?: Choice } | null>(null);
   const [storageError, setStorageError] = useState("");
@@ -122,11 +125,10 @@ export default function DailyHuntPage() {
     setUndo({ id, previous });
     updateChoices({ ...choicesRef.current, [id]: choice });
     setSwipeFlash(current => ({ ...current, [id]: choice }));
-    setShowSwipeTip(false);
-    if (storageKey.current) persist(storageKey.current + ":tip", "seen");
+    setTipClosing(true);
     // animationend removes the card after its final fade. This is a fallback
     // for browsers that suspend animations in a background tab.
-    flashTimers.current.set(id, setTimeout(() => clearFlash(id), 1150));
+    flashTimers.current.set(id, setTimeout(() => clearFlash(id), 3500));
   }
 
   function undoLast() {
@@ -148,7 +150,7 @@ export default function DailyHuntPage() {
   }
 
   function startSwipe(e: PointerEvent<HTMLElement>, id: string) {
-    if (folder !== "hunt" || flashTimers.current.has(id) || !e.isPrimary || e.button !== 0 ||
+    if (e.pointerType === "touch" || folder !== "hunt" || flashTimers.current.has(id) || !e.isPrimary || e.button !== 0 ||
         (e.target as HTMLElement).closest("button, input, select, textarea")) return;
     gesture.current = { x: e.clientX, y: e.clientY, id, pointerId: e.pointerId, axis: null };
   }
@@ -162,7 +164,7 @@ export default function DailyHuntPage() {
       if (Math.abs(dx) > Math.abs(dy) * 1.2) {
         start.axis = "x";
         e.currentTarget.setPointerCapture(e.pointerId);
-      } else {
+      } else if (Math.abs(dy) > 18 && Math.abs(dy) > Math.abs(dx) * 1.5) {
         start.axis = "y";
       }
     }
@@ -181,9 +183,85 @@ export default function DailyHuntPage() {
     if (start.axis !== "x") return;
     suppressClickUntil.current = e.timeStamp + 500;
     const dx = e.clientX - start.x;
-    const threshold = Math.max(56, Math.min(80, e.currentTarget.clientWidth * .22));
+    const threshold = Math.max(30, Math.min(44, e.currentTarget.clientWidth * .085));
     if (!cancelled && Math.abs(dx) >= threshold) decide(start.id, dx > 0 ? "saved" : "dismissed");
   }
+
+
+  const commitTouchSwipe = useEffectEvent((id: string, choice: Choice) => decide(id, choice));
+  const markTipSeen = useEffectEvent(() => {
+    if (storageKey.current) persist(storageKey.current + ":floating-tip:v1", "seen");
+  });
+
+  useEffect(() => {
+    if (!showSwipeTip) return;
+    const timer = setTimeout(() => {
+      if (tipClosing) { setShowSwipeTip(false); markTipSeen(); }
+      else setTipClosing(true);
+    }, tipClosing ? 450 : 5500);
+    return () => clearTimeout(timer);
+  }, [showSwipeTip, tipClosing]);
+
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid || loading || folder !== "hunt") return;
+    let active: { id: string; identifier: number; x: number; y: number; time: number; width: number; axis: "x" | "y" | null } | null = null;
+    const reset = () => { active = null; setDrag(null); };
+    const start = (event: TouchEvent) => {
+      if (event.touches.length !== 1) { reset(); return; }
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target || target.closest("input, select, textarea")) return;
+      const card = target.closest<HTMLElement>("article[data-listing-id]");
+      const id = card?.dataset.listingId;
+      if (!card || !id || flashTimers.current.has(id)) return;
+      const touch = event.touches[0];
+      active = { id, identifier: touch.identifier, x: touch.clientX, y: touch.clientY, time: event.timeStamp, width: card.clientWidth, axis: null };
+    };
+    const move = (event: TouchEvent) => {
+      if (!active || event.touches.length !== 1) { reset(); return; }
+      const touch = Array.from(event.touches).find(t => t.identifier === active?.identifier);
+      if (!touch) return;
+      const dx = touch.clientX - active.x, dy = touch.clientY - active.y;
+      if (!active.axis) {
+        if (Math.abs(dx) >= 8 && Math.abs(dx) > Math.abs(dy) * 1.05) active.axis = "x";
+        else if (Math.abs(dy) >= 18 && Math.abs(dy) > Math.abs(dx) * 1.5) active.axis = "y";
+      }
+      if (active.axis === "x") {
+        // Native, non-passive listener: Safari can yield horizontal gestures
+        // to us while ordinary vertical scrolling remains native.
+        if (event.cancelable) event.preventDefault();
+        suppressClickUntil.current = event.timeStamp + 500;
+        setDrag({ id: active.id, x: dx });
+      }
+    };
+    const end = (event: TouchEvent) => {
+      if (!active) return;
+      const touch = Array.from(event.changedTouches).find(t => t.identifier === active?.identifier);
+      if (!touch) return;
+      const current = active;
+      const dx = touch.clientX - current.x, dy = touch.clientY - current.y;
+      const elapsed = Math.max(1, event.timeStamp - current.time);
+      const horizontal = current.axis !== "y" && Math.abs(dx) > Math.abs(dy) * 1.05;
+      const distance = Math.max(30, Math.min(44, current.width * .085));
+      const committed = horizontal && (Math.abs(dx) >= distance || (Math.abs(dx) >= 26 && Math.abs(dx) / elapsed >= .35));
+      if (current.axis === "x" || committed) {
+        suppressClickUntil.current = event.timeStamp + 500;
+        if (event.cancelable) event.preventDefault();
+      }
+      reset();
+      if (committed) flushSync(() => commitTouchSwipe(current.id, dx > 0 ? "saved" : "dismissed"));
+    };
+    grid.addEventListener("touchstart", start, { passive: true });
+    grid.addEventListener("touchmove", move, { passive: false });
+    grid.addEventListener("touchend", end, { passive: false });
+    grid.addEventListener("touchcancel", reset, { passive: true });
+    return () => {
+      grid.removeEventListener("touchstart", start);
+      grid.removeEventListener("touchmove", move);
+      grid.removeEventListener("touchend", end);
+      grid.removeEventListener("touchcancel", reset);
+    };
+  }, [loading, folder]);
 
 
   useEffect(() => {
@@ -210,7 +288,7 @@ export default function DailyHuntPage() {
         }
         choicesRef.current = valid;
         setChoices(valid);
-        setShowSwipeTip(localStorage.getItem(key + ":tip") !== "seen");
+        setShowSwipeTip(localStorage.getItem(key + ":floating-tip:v1") !== "seen");
       } catch {
         setShowSwipeTip(true);
         setStorageError("Eerdere keuzes konden niet worden gelezen op dit apparaat.");
@@ -323,7 +401,6 @@ setResults(resultData ?? []);
           <button type="button" aria-pressed={findsTab === "saved"} style={pill(findsTab === "saved")} onClick={() => setFindsTab("saved")}>❤️ Bewaard ({Object.values(choices).filter(x => x === "saved").length})</button>
           <button type="button" aria-pressed={findsTab === "dismissed"} style={pill(findsTab === "dismissed")} onClick={() => setFindsTab("dismissed")}>👎 Niet geïnteresseerd ({Object.values(choices).filter(x => x === "dismissed").length})</button>
         </div>}
-        {folder === "hunt" && showSwipeTip && <div style={{ color: "#b9e7ed", background: "#123944", padding: "10px 12px", borderRadius: 10, fontSize: 13, marginBottom: 12 }}>SWIPE 👈 Niet geïnteresseerd | ❤️ Bewaren 👉</div>}
         {folder === "hunt" && <><div style={{ display: "flex", flexWrap: "wrap", gap: 7, alignItems: "center" }}>
           <button type="button" onClick={() => setViewMode("candidates")} aria-pressed={viewMode === "candidates"} style={pill(viewMode === "candidates")}>🔎 Kandidaten</button>
           <button type="button" onClick={() => setViewMode("all")} aria-pressed={viewMode === "all"} style={pill(viewMode === "all")}>Alles</button>
@@ -339,22 +416,19 @@ setResults(resultData ?? []);
       <section style={{ maxWidth: 1100, margin: "0 auto" }}>
         {listingsError && <p role="alert">{listingsError}</p>}
         {!listingsError && visibleListings.length === 0 && <p style={{ color: "#a9c5cc" }}>Geen advertenties in dit overzicht. Je kunt de filters aanpassen of een andere map openen.</p>}
-        <div className="th-daily-grid">
+        <div ref={gridRef} className="th-daily-grid">
           {visibleListings.map(item => (
-            <article key={item.id}
+            <article key={item.id} data-listing-id={item.id}
               onPointerDown={e => startSwipe(e, item.id)}
               onPointerMove={moveSwipe}
               onPointerUp={e => endSwipe(e)}
               onPointerCancel={e => endSwipe(e, true)}
               onLostPointerCapture={e => { if (e.target === e.currentTarget) endSwipe(e, true); }}
               onDragStart={e => e.preventDefault()}
-              onAnimationEnd={e => {
-                if (e.target === e.currentTarget && swipeFlash[item.id]) clearFlash(item.id);
-              }}
               onClickCapture={e => {
                 if (e.timeStamp < suppressClickUntil.current) { e.preventDefault(); e.stopPropagation(); }
               }}
-              style={{ minWidth: 0, overflow: "hidden", borderRadius: 14, border: "1px solid #1c5666", background: "#102c36", position: "relative", animation: swipeFlash[item.id] ? "thCardLeave 1000ms linear both" : undefined, touchAction: "pan-y pinch-zoom", transform: drag?.id === item.id ? `translateX(${Math.max(-110, Math.min(110, drag.x))}px) rotate(${Math.max(-6, Math.min(6, drag.x / 20))}deg)` : undefined, transition: drag?.id === item.id ? "none" : "transform 180ms ease-out" }}>
+              style={{ minWidth: 0, overflow: "hidden", borderRadius: 14, border: "1px solid #1c5666", background: "#102c36", position: "relative", animation: folder === "hunt" && swipeFlash[item.id] ? "thCardLeave 1000ms linear both" : undefined, touchAction: "auto", transform: drag?.id === item.id ? `translateX(${Math.max(-110, Math.min(110, drag.x))}px) rotate(${Math.max(-6, Math.min(6, drag.x / 20))}deg)` : undefined, transition: drag?.id === item.id ? "none" : "transform 180ms ease-out" }}>
               <a href={item.url} target="_blank" rel="noopener noreferrer" aria-label={`Bekijk ${item.title}`} style={{ display: "block", textDecoration: "none", color: "white" }}>
                 <div style={{ position: "relative", background: "#091b24", aspectRatio: "1 / 1" }}>
                   {item.image ? <img src={item.image} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <div style={{ height: "100%", display: "grid", placeItems: "center", color: "#91b6bf", fontSize: 12 }}>Geen foto</div>}
@@ -369,12 +443,6 @@ setResults(resultData ?? []);
                   <span style={{ display: "block", fontSize: 10, color: "#a9c5cc", marginTop: 3 }}>{item.price_kind === "auction" ? "Veiling" : item.price_kind === "bid" ? "Startbod" : item.price_kind === "fixed" ? "Vraagprijs" : ""}</span>
                 </div>
               </a>
-              {(swipeFlash[item.id] || (drag?.id === item.id && Math.abs(drag.x) > 10)) && <div aria-hidden="true" className="th-swipe-feedback" style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", zIndex: 3, pointerEvents: "none" }}>
-                <span key={swipeFlash[item.id] ? "confirmed" : "dragging"} className="th-swipe-symbol" style={{ display: "block", fontSize: "clamp(96px, 25vw, 140px)", lineHeight: 1, filter: "drop-shadow(0 8px 22px #0008)", opacity: swipeFlash[item.id] ? undefined : Math.min(.85, Math.abs(drag?.x ?? 0) / 110), animation: swipeFlash[item.id] ? "thSwipeFloat 1000ms cubic-bezier(.22,.61,.36,1) both" : undefined }}>
-                  {(swipeFlash[item.id] ? swipeFlash[item.id] === "saved" : (drag?.x ?? 0) > 0) ? "❤️" : "👎"}
-                </span>
-              </div>}
-
               {folder === "hunt" ? <div style={{ display: "flex", gap: 8, padding: "8px 11px 0" }}>
                 <button type="button" onClick={() => decide(item.id, "dismissed")} style={pill(false)}>👎 Niet geïnteresseerd</button>
                 <button type="button" onClick={() => decide(item.id, "saved")} style={pill(false)}>❤️ Bewaren</button>
@@ -386,13 +454,37 @@ setResults(resultData ?? []);
           ))}
         </div>
       </section>
+      {folder === "hunt" && typeof document !== "undefined" && createPortal(<>
+        {showSwipeTip && <div role="status" className="th-floating-tip" style={{ position: "fixed", left: "50%", bottom: "calc(108px + env(safe-area-inset-bottom, 0px))", width: "min(420px, calc(100vw - 32px))", padding: "16px 18px", borderRadius: 20, background: "rgba(12, 45, 56, .94)", border: "1px solid #5be4e577", boxShadow: "0 12px 44px #0007", backdropFilter: "blur(16px)", color: "#e0fbff", textAlign: "center", fontSize: 14, lineHeight: 1.65, zIndex: 3001, pointerEvents: "none", animation: tipClosing ? "thTipExit 450ms ease-in both" : "thTipHover 2200ms ease-in-out infinite" }}>
+          <strong style={{ display: "block", fontSize: 12, letterSpacing: 2, color: "#8ce5e7" }}>SWIPE</strong>
+          👈 Niet geïnteresseerd <span style={{ opacity: .45 }}> | </span> ❤️ Bewaren 👉
+        </div>}
+        {[...Object.entries(swipeFlash), ...(drag && !swipeFlash[drag.id] && Math.abs(drag.x) > 10 ? [[drag.id, drag.x > 0 ? "saved" : "dismissed"]] : [])].map(([id, choice]) => <div key={id + (swipeFlash[id] ? ":confirmed" : ":dragging")} aria-hidden="true" className="th-swipe-feedback" style={{ position: "fixed", inset: 0, zIndex: 3000, pointerEvents: "none" }}>
+          <span className="th-swipe-symbol" onAnimationStart={e => {
+            if (e.target !== e.currentTarget || !swipeFlash[id]) return;
+            const timer = flashTimers.current.get(id);
+            if (timer) clearTimeout(timer);
+            flashTimers.current.set(id, setTimeout(() => clearFlash(id), 1500));
+          }} onAnimationEnd={e => { if (e.target === e.currentTarget && swipeFlash[id]) clearFlash(id); }} style={{ position: "absolute", left: "50%", top: "45%", display: "block", fontSize: "clamp(110px, 28vw, 160px)", lineHeight: 1, filter: "drop-shadow(0 10px 28px #0008)", transform: "translate(-50%, -50%)", opacity: swipeFlash[id] ? undefined : Math.min(.85, Math.abs(drag?.x ?? 0) / 90), animation: swipeFlash[id] ? "thSwipeFloat 1000ms cubic-bezier(.22,.61,.36,1) both" : undefined }}>
+            {choice === "saved" ? "❤️" : "👎"}
+          </span>
+        </div>)}
+      </>, document.body)}
       <style jsx>{`
         @keyframes thSwipeFloat {
-          0% { opacity: 0; transform: translateY(18px) scale(.7); }
-          22% { opacity: 1; transform: translateY(0) scale(1); }
-          50% { opacity: 1; transform: translateY(-18px) scale(1.12); }
-          74% { opacity: .7; transform: translateY(-42px) scale(1.16); }
-          100% { opacity: 0; transform: translateY(-78px) scale(1.2); }
+          0% { opacity: 0; transform: translate(-50%, calc(-50% + 18px)) scale(.7); }
+          22% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+          50% { opacity: 1; transform: translate(-50%, calc(-50% - 18px)) scale(1.12); }
+          74% { opacity: .7; transform: translate(-50%, calc(-50% - 42px)) scale(1.16); }
+          100% { opacity: 0; transform: translate(-50%, calc(-50% - 78px)) scale(1.2); }
+        }
+        @keyframes thTipHover {
+          0%, 100% { transform: translate(-50%, 0); }
+          50% { transform: translate(-50%, -10px); }
+        }
+        @keyframes thTipExit {
+          from { opacity: 1; transform: translate(-50%, -5px); }
+          to { opacity: 0; transform: translate(-50%, -30px); }
         }
         @keyframes thCardLeave {
           0%, 86% { opacity: 1; }
